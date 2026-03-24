@@ -27,6 +27,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 from generate_menu import extract_menus, detect_month_year, extract_allergies, match_allergies, analyze_sauce, build_json_data
 from parse_pdf import parse_pdf_menu, build_json_from_pdf
 from parse_yeongdeungpo import parse_yd_pdf, parse_yd_excel, build_yd_json
+from parse_seongnam import parse_sn_pdf, parse_sn_excel, build_sn_json
 
 # 지역명 → ID 매핑
 REGION_MAP = {
@@ -35,6 +36,8 @@ REGION_MAP = {
     "수원시": "suwon",
     "김포시": "gimpo",
     "용인시": "yongin",
+    "경기도성남시": "seongnam",
+    "성남시": "seongnam",
 }
 
 REGION_NAMES = {v: k for k, v in REGION_MAP.items()}
@@ -46,11 +49,15 @@ REGION_DISPLAY = {
     "수원시": "경기 수원시",
     "김포시": "경기 김포시",
     "용인시": "경기 용인시",
+    "경기도성남시": "경기 성남시",
+    "성남시": "경기 성남시",
 }
 
 
 def parse_upload_filename(filename: str) -> dict | None:
     """파일명에서 메타데이터 추출"""
+    import unicodedata
+    filename = unicodedata.normalize('NFC', filename)
     name = Path(filename).stem
     ext = Path(filename).suffix.lstrip('.')
     pattern = r'^(\d{6})_([가-힣]+)_(.+?)_(.+?)_(식단표|레시피)$'
@@ -101,6 +108,11 @@ def detect_pdf_format(pdf_path: Path) -> str:
                 days = [str(c or '') for c in header]
                 if '월' in days and '화' in days:
                     return "yeongdeungpo"
+            # 성남시: 11열 테이블, 첫 셀에 "N주차"
+            if ncols == 11:
+                first_cell = str(biggest[0][0] or '').strip()
+                if re.match(r'\d+주차', first_cell):
+                    return "seongnam"
             return "standard"
     except Exception:
         return "standard"
@@ -118,6 +130,20 @@ def _process_yeongdeungpo(pdf_file: Path, xlsx_file: Path | None = None) -> dict
         except Exception as e:
             print(f"  [WARN] Excel 파싱 실패: {e}")
     return build_yd_json(pdf_data, recipes)
+
+
+def _process_seongnam(pdf_file: Path, xlsx_file: Path | None = None) -> dict | None:
+    """성남시 포맷 처리"""
+    print(f"  [성남시 포맷] PDF 파싱...")
+    pdf_data = parse_sn_pdf(str(pdf_file))
+    recipes = {}
+    if xlsx_file and xlsx_file.exists():
+        print(f"  [성남시 포맷] Excel 레시피 파싱...")
+        try:
+            recipes = parse_sn_excel(str(xlsx_file))
+        except Exception as e:
+            print(f"  [WARN] Excel 파싱 실패: {e}")
+    return build_sn_json(pdf_data, recipes)
 
 
 def _process_excel_pdf(recipe_file: Path, allergy_file: Path) -> dict | None:
@@ -171,7 +197,9 @@ def process_upload_group(group_key: str, files: list[dict]) -> dict | None:
     fmt = detect_pdf_format(pdf_file)
     print(f"  [포맷 감지] {fmt}")
 
-    if fmt == "yeongdeungpo":
+    if fmt == "seongnam":
+        data = _process_seongnam(pdf_file, xlsx_file)
+    elif fmt == "yeongdeungpo":
         data = _process_yeongdeungpo(pdf_file, xlsx_file)
     elif xlsx_file and xlsx_file.exists():
         print(f"  [Excel+PDF] {xlsx_file.name} + {pdf_file.name}")
