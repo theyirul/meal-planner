@@ -100,6 +100,8 @@ def _parse_menu_cell(cell_text: str) -> list[dict]:
         return []
 
     items = []
+    # "경기도과일 또는\n유아치즈2,당근주스" → "경기도과일 또는 유아치즈2,당근주스"
+    cell_text = re.sub(r'경기도과일\s*또는\s*\n', '경기도과일 또는 ', cell_text)
     lines = cell_text.strip().split('\n')
     i = 0
     while i < len(lines):
