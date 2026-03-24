@@ -123,12 +123,12 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
 
 /* ── WEEKLY date pills ── */
 .wr{display:flex;gap:4px;flex:1;justify-content:center}
-.wc{background:var(--card);border-radius:20px;padding:6px 0;cursor:pointer;border:1.5px solid var(--border-light);transition:all .15s;text-align:center;-webkit-tap-highlight-color:transparent;position:relative;flex:1;max-width:60px}
+.wc{background:var(--card);border-radius:12px;padding:6px 0;cursor:pointer;border:1.5px solid var(--border-light);transition:all .15s;text-align:center;-webkit-tap-highlight-color:transparent;position:relative;flex:1;max-width:60px}
 .wc:active{border-color:var(--accent-border);opacity:.8}
 .wc.ac{border-color:var(--text);background:var(--accent-light)}
 .wc .wd{font-size:.62rem;color:var(--text3);line-height:1.3}
 .wc .wdt{font-weight:700;font-size:.82rem;color:var(--text);line-height:1.3}
-.wc .wdots{position:absolute;top:3px;right:3px;display:flex;gap:2px}
+.wc .wdots{position:absolute;top:4px;right:5px;display:flex;gap:2px}
 .wc .wdots .wd-a,.wc .wdots .wd-s{width:5px;height:5px;border-radius:50%;display:none}
 .wc .wdots .wd-a{background:var(--alert)}
 .wc .wdots .wd-s{background:var(--ok)}
@@ -1150,9 +1150,44 @@ function buildProducts(){
   `).join('');
 }
 
+// ── Swipe navigation on detail panel ──
+function initSwipe(){
+  const wp=document.getElementById('wP');
+  let sx=0,sy=0,swiping=false;
+  wp.addEventListener('touchstart',e=>{
+    sx=e.touches[0].clientX;sy=e.touches[0].clientY;swiping=true;
+  },{passive:true});
+  wp.addEventListener('touchend',e=>{
+    if(!swiping)return;swiping=false;
+    const dx=e.changedTouches[0].clientX-sx;
+    const dy=e.changedTouches[0].clientY-sy;
+    if(Math.abs(dx)<50||Math.abs(dx)<Math.abs(dy))return; // 최소 50px, 가로>세로
+    if(dx<0)swipeDay(1);  // 왼쪽 스와이프 → 다음 날
+    else swipeDay(-1);     // 오른쪽 스와이프 → 이전 날
+  },{passive:true});
+}
+function swipeDay(dir){
+  const wp=document.getElementById('wP');
+  const cur=wp.dataset.d;if(!cur)return;
+  // 모든 주의 날짜를 평탄화 (토요일 숨기기 반영)
+  const allDays=wks.flatMap(wk=>wk.filter(d=>{
+    if(!d||(D[d]||[]).length===0)return false;
+    if(hideSat&&new Date(d+'T00:00:00').getDay()===6)return false;
+    return true;
+  }));
+  const ci=allDays.indexOf(cur);if(ci<0)return;
+  const ni=ci+dir;if(ni<0||ni>=allDays.length)return;
+  const nextDs=allDays[ni];
+  // 주가 바뀌었는지 확인
+  const newWI=wks.findIndex(wk=>wk.includes(nextDs));
+  if(newWI>=0&&newWI!==wI){wI=newWI;rw();}
+  wc2(nextDs);
+}
+
 // ── Auto-navigate on load ──
 document.addEventListener('DOMContentLoaded',async()=>{
   await init();
+  initSwipe();
   // 설정이 없으면 자동으로 설정 패널 열기
   if(!currentCenter)toggleSettings();
 });
