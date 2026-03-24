@@ -56,6 +56,11 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
 .al-chip.on{background:var(--alert);color:#fff;border-color:var(--alert)}
 .al-chip .n{font-weight:700}
 
+/* Toggle */
+.st-toggle{display:flex;align-items:center;gap:10px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.st-toggle input{width:18px;height:18px;accent-color:var(--brand);cursor:pointer}
+.st-toggle-label{font-size:.86rem;color:var(--text2)}
+
 /* Settings summary */
 .st-summary{background:#FAFAFA;border:1px solid var(--border-light);border-radius:var(--radius);padding:14px 18px;margin-top:20px;font-size:.86rem;color:var(--text2);line-height:1.6}
 .st-summary strong{color:var(--text);font-weight:600}
@@ -337,6 +342,13 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
     <div class="al-grid" id="alGrid"></div>
   </div>
 
+  <div class="st-section">
+    <label class="st-toggle">
+      <input type="checkbox" id="satToggle" onchange="onSatToggle()">
+      <span class="st-toggle-label">토요일 식단 숨기기</span>
+    </label>
+  </div>
+
   <div class="st-summary" id="stSummary" style="display:none">
     <div id="sumText"></div>
   </div>
@@ -411,6 +423,7 @@ const F=new Set(); // allergy filter
 let currentCenter='';
 let currentMonth='';
 let dataLoaded=false;
+let hideSat=false; // 토요일 숨기기
 let currentProdTag='전체';
 
 // ── localStorage ──
@@ -422,7 +435,7 @@ function saveSettings(){
   const region=document.getElementById('regionSel').value;
   const monthEl=document.getElementById('monthSel');
   const month=monthEl?monthEl.value:'';
-  const s={regionId:region,monthKey:month,allergens:[...F]};
+  const s={regionId:region,monthKey:month,allergens:[...F],hideSat};
   localStorage.setItem(STORE_KEY,JSON.stringify(s));
 }
 
@@ -435,6 +448,12 @@ async function init(){
   if(saved.allergens&&saved.allergens.length){
     saved.allergens.forEach(n=>F.add(n));
     document.querySelectorAll('.al-chip').forEach(c=>c.classList.toggle('on',F.has(+c.dataset.n)));
+  }
+
+  // Restore hideSat
+  if(saved.hideSat){
+    hideSat=true;
+    document.getElementById('satToggle').checked=true;
   }
 
   // Load centers (fetch first, fallback to embedded)
@@ -496,6 +515,12 @@ function toggleAllergy(n){
   updateFilterBar();
   updateTabBadge();
   if(dataLoaded){af();rw();}
+}
+
+function onSatToggle(){
+  hideSat=document.getElementById('satToggle').checked;
+  saveSettings();
+  if(dataLoaded){af();rw();buildCalendarFromCurrent();}
 }
 
 // ── Region selection → populate month dropdown ──
@@ -650,17 +675,26 @@ function buildCalendar(year,month){
   let emptyCells=firstDay.getDay()===0?0:((firstDay.getDay()+6)%7);
   const lastDate=new Date(year,month,0).getDate();
 
-  let h='<div class="cal">';
+  const cols=hideSat?5:6;
+  let h=`<div class="cal"${hideSat?' style="grid-template-columns:repeat(5,1fr)"':''}>`;
   h+='<div class="ch">월</div><div class="ch">화</div><div class="ch">수</div>';
-  h+='<div class="ch">목</div><div class="ch">금</div><div class="ch sa">토</div>';
+  h+='<div class="ch">목</div><div class="ch">금</div>';
+  if(!hideSat)h+='<div class="ch sa">토</div>';
 
-  for(let i=0;i<emptyCells;i++)h+='<div class="cd em"></div>';
+  // 토요일 숨기면 빈 셀 수 재계산 (토 제외 = 5열 기준)
+  let adjEmpty=emptyCells;
+  if(hideSat&&emptyCells>0){
+    // 월~금만 세므로 토 컬럼 제거 반영
+    adjEmpty=Math.min(emptyCells,4);
+  }
+  for(let i=0;i<adjEmpty;i++)h+='<div class="cd em"></div>';
 
   for(let day=1;day<=lastDate;day++){
     const d=new Date(year,month-1,day);
     if(d.getDay()===0)continue;
     const ds=`${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     const isSat=d.getDay()===6;
+    if(hideSat&&isSat)continue;
     const now=new Date();now.setHours(0,0,0,0);
     const dDate=new Date(year,month-1,day);dDate.setHours(0,0,0,0);
     const isPast=dDate<now;
@@ -685,11 +719,20 @@ function buildCalendar(year,month){
 
   let lastShown=new Date(year,month,0);
   if(lastShown.getDay()===0)lastShown.setDate(lastShown.getDate()-1);
+  if(hideSat&&lastShown.getDay()===6)lastShown.setDate(lastShown.getDate()-1);
   const lastCol=(lastShown.getDay()+6)%7;
-  for(let i=0;i<5-lastCol;i++)h+='<div class="cd em"></div>';
+  const maxCol=hideSat?4:5;
+  for(let i=0;i<maxCol-lastCol;i++)h+='<div class="cd em"></div>';
 
   h+='</div>';
   wrap.innerHTML=h;
+}
+
+function buildCalendarFromCurrent(){
+  if(!currentMonth)return;
+  const [y,m]=currentMonth.split('-').map(Number);
+  buildCalendar(y,m);
+  af();
 }
 
 // ── Summary ──
@@ -821,7 +864,7 @@ function rw(){
     return;
   }
   const wk=wks[wI];if(!wk)return;
-  const fds=wk.filter(d=>d);
+  const fds=wk.filter(d=>{if(!d)return false;if(hideSat&&new Date(d+'T00:00:00').getDay()===6)return false;return true;});
   if(!fds.length){row.innerHTML='';return;}
   row.innerHTML='';
   const wnow=new Date();wnow.setHours(0,0,0,0);
@@ -830,6 +873,7 @@ function rw(){
   wk.forEach(ds=>{
     if(!ds)return;
     const d=new Date(ds+'T00:00:00');
+    if(hideSat&&d.getDay()===6)return;
     const its=D[ds]||[],c=document.createElement('div');c.className='wc';c.dataset.d=ds;
     const wd2=new Date(ds+'T00:00:00');wd2.setHours(0,0,0,0);
     if(wd2<wnow)c.classList.add('past');
