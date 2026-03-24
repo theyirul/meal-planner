@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>매일아침 — 어린이집 식단표</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Pretendard+Variable:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
+:root{
+  --accent:#1F2937;--accent-light:#F3F4F6;--accent-border:#D1D5DB;
+  --alert:#DC2626;--alert-bg:#FEF2F2;--alert-light:#FECACA;
+  --ok:#16A34A;--ok-bg:#F0FDF4;--ok-border:#BBF7D0;
+  --bg:#FFFFFF;--card:#FFFFFF;
+  --text:#111827;--text2:#6B7280;--text3:#9CA3AF;
+  --border:#E5E7EB;--border-light:#F3F4F6;
+  --radius:10px;
+  --brand:#333333;--brand-light:#F3F4F6;--brand-border:#D1D5DB;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);padding:28px 20px;max-width:860px;margin:0 auto;font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+/* ── Top bar ── */
+.top-bar{display:flex;align-items:center;justify-content:space-between;margin:16px 0 20px}
+.top-bar h1{margin:0;font-size:1.5rem;font-weight:700;color:var(--text);letter-spacing:-.02em}
+.gear-btn{background:var(--border-light);border:1px solid var(--border);border-radius:8px;padding:5px 12px;font-size:.78rem;font-family:inherit;color:var(--text2);cursor:pointer;font-weight:500;-webkit-tap-highlight-color:transparent;transition:all .15s}
+.gear-btn:active{background:var(--border);color:var(--text)}
+.gear-btn .gear-count{display:inline-block;background:var(--alert);color:#fff;font-size:.68rem;font-weight:700;border-radius:10px;padding:0 6px;margin-left:4px;line-height:1.5}
+
+/* ── Main Tabs (2-tab: 주간/월간) ── */
+.tabs{display:flex;gap:4px;margin-bottom:28px;background:var(--border-light);border-radius:var(--radius);padding:3px}
+.tb{flex:1;padding:11px 0;text-align:center;font-size:.9rem;font-weight:600;color:var(--text3);background:none;border:none;cursor:pointer;font-family:inherit;transition:all .2s;border-radius:8px;-webkit-tap-highlight-color:transparent}
+.tb.on{color:var(--text);background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.tb .tb-badge{display:inline-block;font-size:.65rem;padding:1px 6px;border-radius:10px;background:var(--alert);color:#fff;margin-left:4px;vertical-align:middle;font-weight:700}
+.tc{display:none}.tc.on{display:block}
+
+/* ── Settings panel (overlay) ── */
+.settings-panel{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:100;padding:28px 20px;overflow-y:auto;animation:slideUp .25s ease}
+.settings-panel.open{display:block}
+@keyframes slideUp{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}
+.sp-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
+.sp-header h2{font-size:1.2rem;font-weight:700}
+.sp-close{background:none;border:none;font-size:1.5rem;cursor:pointer;padding:4px 8px;color:var(--text3);-webkit-tap-highlight-color:transparent}
+
+/* ── Settings tab ── */
+.st-section{margin-bottom:28px}
+.st-label{font-size:.88rem;font-weight:600;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.st-label .st-icon{font-size:1rem}
+.st-desc{font-size:.8rem;color:var(--text3);margin-bottom:12px;line-height:1.5}
+.st-select{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:.9rem;font-family:inherit;color:var(--text);background:var(--card);outline:none;transition:border-color .2s;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236B7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}
+.st-select:focus{border-color:var(--accent)}
+
+/* Allergy grid in settings */
+.al-grid{display:flex;flex-wrap:wrap;gap:6px}
+.al-chip{font-size:.82rem;padding:8px 14px;border-radius:24px;background:var(--border-light);color:var(--text2);cursor:pointer;transition:all .15s;border:1.5px solid transparent;user-select:none;font-weight:500}
+.al-chip:active{background:var(--alert-bg);border-color:var(--alert-light)}
+.al-chip.on{background:var(--alert);color:#fff;border-color:var(--alert)}
+.al-chip .n{font-weight:700}
+
+/* Settings summary */
+.st-summary{background:#FAFAFA;border:1px solid var(--border-light);border-radius:var(--radius);padding:14px 18px;margin-top:20px;font-size:.86rem;color:var(--text2);line-height:1.6}
+.st-summary strong{color:var(--text);font-weight:600}
+.st-summary .al-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.st-summary .al-tag{font-size:.74rem;padding:2px 8px;border-radius:6px;background:var(--alert-light);color:var(--alert);font-weight:600}
+
+/* ── Allergy tags (compact chips in detail panel header) ── */
+.wp-allergy-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:4px;margin-bottom:10px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.wp-allergy-row:active{opacity:.7}
+.wp-al-chip{font-size:.72rem;padding:2px 8px;border-radius:6px;background:var(--border-light);color:var(--text2);font-weight:500;line-height:1.4}
+
+/* ── Search ── */
+.srch-toggle{display:block;width:100%;padding:10px;margin-top:16px;background:none;border:1px solid var(--border);border-radius:var(--radius);font-size:.84rem;color:var(--text3);cursor:pointer;font-family:inherit;-webkit-tap-highlight-color:transparent;transition:all .15s}
+.srch-toggle:active{border-color:var(--accent);color:var(--text2)}
+.srch-area{margin-top:12px}
+.srch{margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.srch input{flex:1;border:1.5px solid var(--border);border-radius:var(--radius);padding:10px 14px;font-size:.9rem;font-family:inherit;outline:none;transition:border-color .2s;background:var(--card)}
+.srch input:focus{border-color:var(--accent)}
+.srch input::placeholder{color:var(--text3)}
+.srch .sr-cl{background:none;border:none;font-size:1.1rem;color:var(--text3);cursor:pointer;padding:4px 8px;display:none}
+.srch .sr-cl.sh{display:block}
+.cd.sr-hl{border-color:var(--text)!important;background:var(--accent-light)!important;opacity:1!important}
+.cd.sr-dim{opacity:.2!important}
+.sr-cnt{text-align:center;font-size:.82rem;color:var(--text2);margin:-12px 0 18px}
+
+/* ── MONTHLY CALENDAR ── */
+.cal{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin-bottom:28px}
+.ch{text-align:center;font-weight:600;font-size:.78rem;padding:10px 2px 6px;color:var(--text3)}
+.ch.sa{color:#3B82F6}
+.cd{background:var(--card);border-radius:var(--radius);padding:8px 7px;min-height:0;cursor:pointer;transition:all .15s;border:1.5px solid var(--border-light);position:relative}
+.cd:active{border-color:var(--accent-border);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.cd.ac{border-color:var(--accent);background:var(--accent-light)}
+.cd.past{opacity:.4}.cd.past .dn{color:var(--text3)}.cd.past:active{opacity:.7}
+.cd.today .dn{color:var(--brand);font-weight:800;font-size:.92rem}
+.cd.em{background:transparent;cursor:default;border-color:transparent;opacity:.3}
+.cd .dn{font-weight:700;font-size:.88rem;margin-bottom:4px;color:var(--text)}
+.cd.sa .dn{color:#3B82F6}
+.cd .dt{position:absolute;top:7px;right:7px;display:flex;gap:3px}
+.cd .ad{width:7px;height:7px;border-radius:50%;background:var(--alert);display:none}
+.cd .sd{width:7px;height:7px;border-radius:50%;background:var(--ok);display:none}
+.cd .mp{font-size:.7rem;color:var(--text2);line-height:1.45}
+.cd .mp-div{display:block;height:1px;background:var(--border-light);margin:3px 0}
+.cd .mp .ma{color:var(--alert);font-weight:600}
+.cd .mp .ms{color:var(--ok);font-weight:600}
+
+/* ── Allergy & sauce tags ── */
+.at{display:none;flex-wrap:wrap;gap:3px;align-items:center}
+.at.sh{display:inline-flex}
+.ag{font-size:.65rem;padding:1px 5px;border-radius:3px;background:var(--alert-bg);color:var(--alert);font-weight:600;line-height:1.4}
+.ag.hl{background:var(--alert);color:#fff}
+.sb{display:none;font-size:.68rem;padding:2px 7px;border-radius:4px;font-weight:600;white-space:nowrap;line-height:1.4}
+.sb.sh{display:inline}
+.sb.f{background:var(--ok-bg);color:var(--ok)}
+.sb.p{background:#FFFBEB;color:#D97706}
+
+/* ── WEEKLY NAV (pill bar) ── */
+.wn{display:flex;align-items:center;gap:0;margin-bottom:16px}
+.wn>button{background:none;border:none;cursor:pointer;font-family:inherit;font-size:1rem;color:var(--text3);padding:6px 8px;-webkit-tap-highlight-color:transparent;transition:color .15s;flex-shrink:0}
+.wn>button:active{color:var(--text)}
+
+/* ── WEEKLY date pills ── */
+.wr{display:flex;gap:4px;flex:1;justify-content:center}
+.wc{background:var(--card);border-radius:20px;padding:6px 0;cursor:pointer;border:1.5px solid var(--border-light);transition:all .15s;text-align:center;-webkit-tap-highlight-color:transparent;position:relative;flex:1;max-width:60px}
+.wc:active{border-color:var(--accent-border);opacity:.8}
+.wc.ac{border-color:var(--text);background:var(--accent-light)}
+.wc .wd{font-size:.62rem;color:var(--text3);line-height:1.3}
+.wc .wdt{font-weight:700;font-size:.82rem;color:var(--text);line-height:1.3}
+.wc .wdots{position:absolute;top:3px;right:3px;display:flex;gap:2px}
+.wc .wdots .wd-a,.wc .wdots .wd-s{width:5px;height:5px;border-radius:50%;display:none}
+.wc .wdots .wd-a{background:var(--alert)}
+.wc .wdots .wd-s{background:var(--ok)}
+.wc.past{opacity:.4}.wc.past:active{opacity:.6}
+.wc.today{opacity:1;background:var(--brand);border-color:var(--brand)}
+.wc.today .wd{color:rgba(255,255,255,.7)}
+.wc.today .wdt{color:#fff}
+.wc.today .wdots .wd-a{background:#fff}
+.wc.today .wdots .wd-s{background:#fff}
+.wc.today.ac{box-shadow:0 0 0 2px var(--text)}
+.wc.em{opacity:.2;cursor:default}
+
+/* Weekly detail panel */
+.wp{background:var(--card);border-radius:14px;padding:28px;box-shadow:0 1px 8px rgba(0,0,0,.04);border:1px solid var(--border-light);display:none;position:relative;margin-bottom:20px}
+.wp.sh{display:block}
+.wp-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px}
+.wp .wpt{font-size:1.15rem;font-weight:700;color:var(--text)}
+.cp-btn{background:var(--border-light);border:1px solid var(--border);border-radius:8px;padding:6px 14px;font-size:.78rem;font-family:inherit;color:var(--text2);cursor:pointer;transition:all .15s;font-weight:500;white-space:nowrap;flex-shrink:0}
+.cp-btn:active{background:var(--border);color:var(--text)}
+.cp-btn.ok{background:var(--ok-bg);border-color:var(--ok-border);color:var(--ok)}
+.wl2{list-style:none}
+.sec-hd{font-size:.76rem;font-weight:600;color:var(--text2);padding:16px 0 2px;letter-spacing:.02em;border-bottom:none}
+.sec-hd:first-child{padding-top:4px}
+.wi{border-bottom:1px solid var(--border-light);display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}.wi:last-child{border-bottom:none}
+.wh{padding:12px 0;cursor:pointer;display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:.95rem;font-weight:500;color:var(--text);transition:color .15s;-webkit-tap-highlight-color:transparent;flex:1;min-width:0}
+.wh-name{flex-shrink:1;min-width:0}
+.wh:active{color:var(--text2)}
+.wh .ar{transition:transform .3s;font-size:.72rem;color:var(--text3);margin-left:auto}
+.wh.op .ar{transform:rotate(180deg);color:var(--text)}
+
+/* Recipe expand */
+.rc{max-height:0;overflow:hidden;transition:max-height .4s ease;font-size:.88rem;line-height:1.8;color:var(--text2);background:var(--bg);border-radius:var(--radius);width:100%}
+.rc.op{max-height:800px;padding:16px;margin-bottom:8px}
+.rc p{margin:0}
+.sn{background:var(--ok-bg);border-radius:8px;padding:12px 16px;margin-top:12px;font-size:.84rem;color:#15803D;line-height:1.6;border-left:3px solid var(--ok)}
+.sn b{color:#166534}
+.sn .rm-list{font-weight:600}
+.nr{color:var(--text3);font-style:italic;font-size:.86rem}
+.alt-tag{display:block;font-size:.74rem;color:var(--text3);font-weight:400;margin-top:2px;line-height:1.4}
+.alt-tag::before{content:"↳ ";color:var(--border)}
+
+/* ── Strikethrough ── */
+.wi .ck{width:20px;height:20px;border-radius:6px;border:1.5px solid var(--border);cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .15s;-webkit-tap-highlight-color:transparent;margin-top:14px}
+.wi .ck:active{border-color:var(--text3)}
+.wi .ck.done{background:var(--border);border-color:var(--border);color:#fff;font-size:.7rem}
+.wi.chk .wh-name{text-decoration:line-through;color:var(--border)}
+.wi.chk .sb,.wi.chk .ag{opacity:.2}
+.wi.chk .wh .ar{color:var(--border)}
+
+/* ── Products / 추천 tab ── */
+.prod-header{margin-bottom:24px}
+.prod-header h2{font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:6px}
+.prod-header p{font-size:.84rem;color:var(--text2);line-height:1.5}
+.prod-tags{display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap}
+.prod-tag{font-size:.8rem;padding:6px 14px;border-radius:20px;background:var(--border-light);color:var(--text2);cursor:pointer;border:1.5px solid transparent;font-weight:500;transition:all .15s}
+.prod-tag:active{border-color:var(--accent-border)}
+.prod-tag.on{background:var(--brand-light);color:var(--brand);border-color:var(--brand-border);font-weight:600}
+.prod-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.prod-card{background:var(--card);border:1.5px solid var(--border-light);border-radius:12px;overflow:hidden;transition:all .15s;cursor:pointer;text-decoration:none;color:inherit;display:block}
+.prod-card:active{border-color:var(--accent-border);box-shadow:0 4px 16px rgba(0,0,0,.08);transform:translateY(-2px)}
+.prod-img{width:100%;aspect-ratio:1;object-fit:cover;background:var(--border-light);display:block}
+.prod-info{padding:12px 14px 16px}
+.prod-name{font-size:.88rem;font-weight:600;color:var(--text);margin-bottom:4px;line-height:1.4}
+.prod-desc{font-size:.76rem;color:var(--text3);line-height:1.45;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.prod-bottom{display:flex;align-items:center;justify-content:space-between}
+.prod-price{font-size:.92rem;font-weight:700;color:var(--text)}
+.prod-cta{font-size:.72rem;padding:5px 12px;border-radius:6px;background:var(--brand);color:#fff;font-weight:600;border:none;white-space:nowrap}
+.prod-badge{display:inline-block;font-size:.68rem;padding:2px 8px;border-radius:4px;background:var(--brand-light);color:var(--brand);font-weight:600;margin-bottom:8px}
+.prod-empty{text-align:center;padding:40px 20px;color:var(--text3);font-size:.9rem}
+.prod-disclaimer{margin-top:24px;padding:14px 18px;background:var(--border-light);border-radius:var(--radius);font-size:.76rem;color:var(--text3);line-height:1.5}
+
+/* ── TODAY CAROUSEL ── */
+/* Stacked card effect — ghost cards behind */
+.td-sec{margin-bottom:14px}
+.td-sec-title{font-size:.76rem;font-weight:600;color:var(--text3);margin-bottom:6px;letter-spacing:.02em}
+.td-items{display:flex;flex-direction:column;gap:4px}
+.td-item{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--border-light);border:none;border-radius:10px;font-size:.92rem;color:var(--text);font-weight:500;transition:all .15s}
+.td-item.hit{background:var(--alert-bg);border:1px solid var(--alert-light)}
+.td-item.sauce{background:#FFFBEB;border:1px solid #FDE68A}
+.td-item .td-name{flex:1;min-width:0}
+.td-item .td-alt{display:block;font-size:.74rem;color:var(--text3);font-weight:400;margin-top:2px}
+.td-item .td-tags{display:flex;gap:3px;flex-shrink:0;flex-wrap:wrap;max-width:120px;justify-content:flex-end}
+.td-item .ag{font-size:.65rem;padding:1px 5px;border-radius:3px;background:var(--alert-bg);color:var(--alert);font-weight:600}
+.td-item .ag.hl{background:var(--alert);color:#fff}
+.td-item .td-ck{width:22px;height:22px;border-radius:6px;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.72rem;color:transparent;transition:all .15s;-webkit-tap-highlight-color:transparent}
+.td-item.chk .td-ck{background:var(--alert);border-color:var(--alert);color:#fff}
+.td-item.chk .td-name{text-decoration:line-through;color:var(--text3)}
+.td-item.chk .td-tags{opacity:.2}
+.td-item.chk{opacity:.55}
+.td-empty{text-align:center;padding:40px 20px;color:var(--text3);font-size:.9rem;line-height:1.6}
+.td-onboard{text-align:center;padding:48px 20px}
+.td-onboard-title{font-size:1.15rem;font-weight:700;color:var(--text);margin-bottom:8px}
+.td-onboard-desc{font-size:.88rem;color:var(--text2);line-height:1.6;margin-bottom:20px}
+.td-onboard-btn{display:inline-block;padding:12px 32px;background:var(--brand);color:#fff;border-radius:10px;font-size:.9rem;font-weight:600;border:none;cursor:pointer;font-family:inherit;transition:all .15s}
+.td-onboard-btn:active{opacity:.9}
+/* ── Save button in settings ── */
+.st-save-btn{display:block;width:100%;padding:14px;margin-top:24px;background:var(--brand);color:#fff;border:none;border-radius:10px;font-size:.95rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .15s;letter-spacing:-.01em}
+.st-save-btn:active{opacity:.9}
+.st-save-btn.saved{background:var(--ok);pointer-events:none}
+.st-reset-btn{display:block;width:100%;padding:12px;margin-top:10px;background:none;color:var(--text3);border:1px solid var(--border);border-radius:10px;font-size:.88rem;font-weight:500;font-family:inherit;cursor:pointer;transition:all .15s}
+.st-reset-btn:active{color:var(--alert);border-color:var(--alert)}
+/* ── Insight card in today tab (unified) ── */
+.td-insight{border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:.8rem;line-height:1.45}
+.td-insight b{font-weight:600}
+.td-insight.ins-warn{background:var(--alert-bg);border:1px solid var(--alert-light);color:var(--alert)}
+.td-insight.ins-warn b{color:var(--alert)}
+.td-insight.ins-safe{background:var(--ok-bg);border:1px solid var(--ok-border);color:var(--ok)}
+.td-insight.ins-safe b{color:var(--ok)}
+.td-insight.ins-neutral{background:var(--border-light);color:var(--text2)}
+.td-insight.ins-neutral b{color:var(--text)}
+.td-insight .ins-detail{margin-top:4px;font-size:.74rem;opacity:.85}
+
+/* ── Loading / Empty state ── */
+.loading{text-align:center;padding:60px 20px;color:var(--text3)}
+.loading .spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty-msg{text-align:center;padding:40px 20px;color:var(--text3);font-size:.9rem;line-height:1.6}
+
+/* ── Footer ── */
+.site-footer{margin-top:60px;padding:32px 0 20px;border-top:1px solid var(--border)}
+.ft-cta{background:var(--brand-light);border:1.5px solid var(--brand-border);border-radius:12px;padding:24px;text-align:center;margin-bottom:28px}
+.ft-cta-title{font-size:.95rem;font-weight:700;color:var(--text);margin-bottom:6px}
+.ft-cta-desc{font-size:.82rem;color:var(--text2);margin-bottom:14px;line-height:1.5}
+.ft-cta-btn{display:inline-block;padding:10px 28px;background:var(--brand);color:#fff;border-radius:8px;font-size:.88rem;font-weight:600;text-decoration:none;transition:all .15s;font-family:inherit;border:none;cursor:pointer}
+.ft-cta-btn:active{opacity:.9}
+.ft-bottom{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
+.ft-brand{font-size:.92rem;font-weight:700;color:var(--text);letter-spacing:-.01em}
+.ft-links{display:flex;gap:14px;align-items:center;flex-wrap:wrap;justify-content:center}
+.ft-links a{font-size:.8rem;color:var(--text2);text-decoration:none;transition:color .15s}
+.ft-links a:active{color:var(--text)}
+.ft-links .dot{color:var(--border);font-size:.6rem}
+.ft-copy{font-size:.74rem;color:var(--text3)}
+
+/* ── Mobile ── */
+@media(max-width:600px){
+  body{padding:16px 14px;font-size:14px}
+  h1{font-size:1.3rem;margin:12px 0 18px}
+  .tabs{margin-bottom:20px}
+  .tb{padding:9px 0;font-size:.82rem}
+  .td-item{padding:9px 12px;font-size:.88rem}
+  .sub-toggle{max-width:180px;margin-bottom:16px}
+  .st-btn{font-size:.78rem;padding:6px 0}
+  .cal{gap:3px;margin-bottom:20px}
+  .ch{font-size:.72rem;padding:8px 1px 4px}
+  .cd{min-height:0;padding:5px 4px;border-radius:8px}
+  .cd .dn{font-size:.82rem;margin-bottom:2px}
+  .cd .mp{font-size:.6rem;line-height:1.35}
+  .cd .mp-div{margin:2px 0}
+  .cd .ad,.cd .sd{width:6px;height:6px}
+  .al-chip{font-size:.78rem;padding:6px 11px}
+  .wn{margin-bottom:12px}
+  .wn>button{padding:4px 6px;font-size:.9rem}
+  .wr{gap:3px}
+  .wc{padding:5px 0;max-width:52px}
+  .wc .wd{font-size:.58rem}
+  .wc .wdt{font-size:.76rem}
+  .wp{padding:22px 18px;border-radius:12px}
+  .wp .wpt{font-size:1.05rem}
+  .wh{padding:12px 0 6px;font-size:.9rem;gap:6px}
+  .rc.op{padding:12px;font-size:.84rem;line-height:1.7}
+  .sn{padding:10px 12px;font-size:.8rem}
+  .sb{font-size:.68rem;padding:2px 7px}
+  .ag{font-size:.68rem;padding:2px 6px}
+  .at{gap:3px}
+  .sec-hd{padding:12px 0 2px}
+  .prod-grid{gap:10px}
+  .prod-info{padding:10px 12px 14px}
+  .prod-name{font-size:.82rem}
+  .prod-desc{font-size:.72rem}
+  .prod-price{font-size:.86rem}
+  .prod-cta{font-size:.68rem;padding:4px 10px}
+}
+@media(max-width:380px){
+  .cd{padding:4px 3px}
+  .cd .dn{font-size:.76rem}
+  .cd .mp{font-size:.54rem;line-height:1.3}
+  .wc{padding:4px 0;max-width:46px}
+  .wc .wdt{font-size:.7rem}
+  .prod-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <h1 id="pageTitle">매일아침</h1>
+  <button class="gear-btn" id="gearBtn" onclick="toggleSettings()">설정</button>
+</div>
+
+<div class="tabs">
+  <button class="tb on" onclick="sw('w')">오늘</button>
+  <button class="tb" onclick="sw('m')">월간</button>
+</div>
+
+<!-- SETTINGS PANEL (overlay) -->
+<div class="settings-panel" id="settingsPanel">
+  <div class="sp-header"><h2>설정</h2><button class="sp-close" onclick="closeSettings()">✕</button></div>
+  <div class="st-section">
+    <div class="st-label">지역 선택</div>
+    <select class="st-select" id="regionSel" onchange="onRegionChange()">
+      <option value="">지역을 선택하세요</option>
+    </select>
+  </div>
+  <div class="st-section" id="monthSection" style="display:none">
+    <div class="st-label">월 선택</div>
+    <select class="st-select" id="monthSel" onchange="onMonthChange()">
+    </select>
+  </div>
+  <div class="st-section">
+    <div class="st-label">우리 아이 알레르기</div>
+    <div class="st-desc">해당하는 알레르기 항목을 선택하세요. 식단 탭에서 자동으로 표시됩니다.</div>
+    <div class="al-grid" id="alGrid"></div>
+  </div>
+
+  <div class="st-summary" id="stSummary" style="display:none">
+    <div id="sumText"></div>
+  </div>
+
+  <button class="st-save-btn" id="saveBtn" onclick="saveAndClose()">저장하고 닫기</button>
+  <button class="st-reset-btn" id="resetBtn" onclick="resetAll()">설정 초기화</button>
+
+  <div class="ft-cta" style="margin-top:32px">
+    <div class="ft-cta-title">우리 어린이집 식단도 올리고 싶다면?</div>
+    <div class="ft-cta-desc">어린이집 이름과 식단표 파일만 보내주세요. 확인 후 등록해드려요.</div>
+    <a class="ft-cta-btn" href="#" id="applyLink" target="_blank">신청하기</a>
+  </div>
+</div>
+
+<!-- TODAY TAB (오늘, default home) -->
+<div class="tc on" id="t-w">
+  <div class="wn"><button onclick="pw()">&#8249;</button><div class="wr" id="wR"></div><button onclick="nw()">&#8250;</button></div>
+  <div class="wp" id="wP"></div>
+</div>
+
+<!-- MONTHLY TAB (월간) -->
+<div class="tc" id="t-m">
+  <div id="calWrap"></div>
+  <button class="srch-toggle" id="srchToggle" onclick="toggleSearch()">🔍 메뉴 검색</button>
+  <div class="srch-area" id="srchArea" style="display:none">
+    <div class="srch">
+      <input type="text" id="sQ" placeholder="예: 카레, 과일, 소고기" oninput="doSr()">
+      <button class="sr-cl" id="sC" onclick="clrSr()">&#10005;</button>
+    </div>
+    <div class="sr-cnt" id="sR" style="display:none"></div>
+  </div>
+</div>
+
+<!-- PRODUCTS (hidden, kept for data) -->
+<div class="tc" id="t-p" style="display:none">
+  <div class="prod-header">
+    <h2>엄마들이 추천하는 유아식 재료</h2>
+    <p>식단표 메뉴를 집에서도 만들어보세요. 검증된 제품만 골라 소개합니다.</p>
+  </div>
+  <div class="prod-tags" id="prodTags"></div>
+  <div class="prod-grid" id="prodGrid"></div>
+  <div class="prod-disclaimer">
+    이 페이지의 링크를 통해 구매하시면 소정의 수수료를 받을 수 있습니다. 제품 추천은 에디터가 직접 사용해보고 선정했습니다.
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer class="site-footer">
+  <div class="ft-bottom">
+    <div class="ft-brand">매일아침</div>
+    <div class="ft-links">
+      <a href="https://instagram.com/yirul" target="_blank">@yirul</a>
+      <span class="dot">&#183;</span>
+      <a href="#" id="feedbackLink">정보 수정 요청</a>
+      <span class="dot">&#183;</span>
+      <a href="#" id="contactLink">문의하기</a>
+    </div>
+    <div class="ft-copy">&copy; 2026 매일아침. 매일 아침, 우리 아이 식단을 확인하세요.</div>
+  </div>
+</footer>
+
+<script>
+// ── State ──
+const AN={1:"난류(계란)",2:"우유",3:"메밀",4:"땅콩",5:"대두",6:"밀",7:"고등어",8:"게",9:"새우",10:"돼지고기",11:"복숭아",12:"토마토",13:"아황산류",14:"호두",15:"닭고기",16:"쇠고기",17:"오징어",18:"조개류",19:"잣"};
+const dk=['일','월','화','수','목','금','토'];
+let centers=[];
+let products=[];
+let D={};     // menu data
+let wks=[];   // weeks array
+let wI=0;
+const F=new Set(); // allergy filter
+let currentCenter='';
+let currentMonth='';
+let dataLoaded=false;
+let currentProdTag='전체';
+
+// ── localStorage ──
+const STORE_KEY='meal-planner-settings';
+function loadSettings(){
+  try{const s=localStorage.getItem(STORE_KEY);return s?JSON.parse(s):{};}catch(e){return{};}
+}
+function saveSettings(){
+  const region=document.getElementById('regionSel').value;
+  const monthEl=document.getElementById('monthSel');
+  const month=monthEl?monthEl.value:'';
+  const s={regionId:region,monthKey:month,allergens:[...F]};
+  localStorage.setItem(STORE_KEY,JSON.stringify(s));
+}
+
+// ── Init ──
+async function init(){
+  buildAllergyGrid();
+  const saved=loadSettings();
+
+  // Restore allergy filter
+  if(saved.allergens&&saved.allergens.length){
+    saved.allergens.forEach(n=>F.add(n));
+    document.querySelectorAll('.al-chip').forEach(c=>c.classList.toggle('on',F.has(+c.dataset.n)));
+  }
+
+  // Load centers (fetch first, fallback to embedded)
+  try{
+    const res=await fetch('data/centers.json');
+    if(!res.ok)throw new Error('fetch failed');
+    centers=await res.json();
+  }catch(e){
+    if(typeof EMBEDDED_CENTERS!=='undefined')centers=EMBEDDED_CENTERS;
+    else centers=[];
+  }
+
+  // Populate region dropdown (unique regions)
+  const regionSel=document.getElementById('regionSel');
+  const regions=[...new Set(centers.map(c=>c.region))].sort();
+  regionSel.innerHTML='<option value="">지역을 선택하세요</option>';
+  regions.forEach(r=>{
+    const o=document.createElement('option');o.value=r;o.textContent=r;
+    regionSel.appendChild(o);
+  });
+
+  // Restore saved region (onRegionChange will also restore monthKey)
+  if(saved.regionId){
+    regionSel.value=saved.regionId;
+    await onRegionChange();
+  }
+
+  // Load products
+  try{
+    const res=await fetch('data/products.json');
+    if(!res.ok)throw new Error('fetch failed');
+    products=await res.json();
+  }catch(e){
+    if(typeof EMBEDDED_PRODUCTS!=='undefined')products=EMBEDDED_PRODUCTS;
+    else products=[];
+  }
+  buildProducts();
+
+  updateSummary();
+  updateFilterBar();
+  updateTabBadge();
+}
+
+// ── Allergy grid (settings) ──
+function buildAllergyGrid(){
+  const g=document.getElementById('alGrid');
+  Object.entries(AN).forEach(([n,nm])=>{
+    const c=document.createElement('span');c.className='al-chip';c.dataset.n=n;
+    c.innerHTML=`<span class="n">${n}</span> ${nm}`;
+    c.onclick=()=>toggleAllergy(+n);
+    g.appendChild(c);
+  });
+}
+function toggleAllergy(n){
+  if(F.has(n))F.delete(n);else F.add(n);
+  document.querySelectorAll('.al-chip').forEach(c=>c.classList.toggle('on',F.has(+c.dataset.n)));
+  saveSettings();
+  updateSummary();
+  updateFilterBar();
+  updateTabBadge();
+  if(dataLoaded){af();rw();}
+}
+
+// ── Region selection → populate month dropdown ──
+async function onRegionChange(){
+  const region=document.getElementById('regionSel').value;
+  const monthSection=document.getElementById('monthSection');
+  const monthSel=document.getElementById('monthSel');
+
+  if(!region){
+    dataLoaded=false;
+    currentCenter='';
+    currentMonth='';
+    monthSection.style.display='none';
+    return;
+  }
+
+  const center=centers.find(c=>c.region===region);
+  if(!center){
+    dataLoaded=false;
+    monthSection.style.display='none';
+    return;
+  }
+
+  currentCenter=center.id;
+
+  // 월 드롭다운 채우기
+  monthSel.innerHTML='';
+  const now=new Date();
+  const curKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  center.months.forEach(m=>{
+    const o=document.createElement('option');
+    o.value=m;
+    const [y,mo]=m.split('-');
+    o.textContent=`${+y}년 ${+mo}월`;
+    monthSel.appendChild(o);
+  });
+
+  // 기본값: 이번 달, 없으면 최신 월
+  const saved=loadSettings();
+  if(saved.monthKey&&center.months.includes(saved.monthKey)){
+    monthSel.value=saved.monthKey;
+  }else if(center.months.includes(curKey)){
+    monthSel.value=curKey;
+  }else{
+    monthSel.value=center.months[center.months.length-1];
+  }
+  monthSection.style.display='';
+  currentMonth=monthSel.value;
+
+  saveSettings();
+  await loadMenuData();
+}
+
+async function onMonthChange(){
+  currentMonth=document.getElementById('monthSel').value;
+  saveSettings();
+  await loadMenuData();
+}
+
+async function _fetchMonthData(center,monthKey){
+  try{
+    const res=await fetch(`data/${center}/${monthKey}.json`);
+    if(!res.ok)throw new Error('fetch failed');
+    return await res.json();
+  }catch(e){
+    const key=`${center}/${monthKey}`;
+    if(typeof EMBEDDED_DATA!=='undefined'&&EMBEDDED_DATA[key])return EMBEDDED_DATA[key];
+    return null;
+  }
+}
+
+function _buildContinuousWeeks(monthsData){
+  // 여러 달의 메뉴를 합치고, 연속 주간 배열 생성
+  const allMenus={};
+  let minDate=null,maxDate=null;
+  monthsData.forEach(d=>{
+    if(!d)return;
+    Object.assign(allMenus,d.menus||{});
+    const dates=Object.keys(d.menus||{}).sort();
+    if(dates.length){
+      if(!minDate||dates[0]<minDate)minDate=dates[0];
+      if(!maxDate||dates[dates.length-1]>maxDate)maxDate=dates[dates.length-1];
+    }
+  });
+  if(!minDate)return{menus:{},weeks:[]};
+  // 주간 배열: minDate가 속한 주 월요일부터 maxDate가 속한 주 토요일까지
+  const sd=new Date(minDate+'T00:00:00');
+  const ed=new Date(maxDate+'T00:00:00');
+  const startMon=new Date(sd);startMon.setDate(sd.getDate()-((sd.getDay()+6)%7));
+  const weeks=[];
+  let cur=new Date(startMon);
+  while(cur<=ed||cur.getDay()!==0){
+    const wk=[];
+    for(let i=0;i<7;i++){
+      if(cur.getDay()!==0){// 일요일 제외
+        const ds=`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}-${String(cur.getDate()).padStart(2,'0')}`;
+        wk.push(ds);
+      }
+      cur.setDate(cur.getDate()+1);
+    }
+    if(wk.length)weeks.push(wk);
+    if(cur>ed&&cur.getDay()===1)break;// 다음 주 월요일이면 종료
+  }
+  return{menus:allMenus,weeks};
+}
+
+async function loadMenuData(){
+  if(!currentCenter||!currentMonth)return;
+
+  try{
+    // 해당 지역의 모든 월 데이터를 한꺼번에 로드
+    const center=centers.find(c=>c.id===currentCenter);
+    const allMonths=center?center.months:[currentMonth];
+    const monthsToLoad=[];
+    let primaryData=null;
+    for(const mk of allMonths){
+      const d=await _fetchMonthData(currentCenter,mk);
+      if(d){
+        monthsToLoad.push(d);
+        if(mk===currentMonth)primaryData=d;
+      }
+    }
+    if(!monthsToLoad.length)throw new Error('no data');
+    if(!primaryData)primaryData=monthsToLoad[0];
+
+    const merged=_buildContinuousWeeks(monthsToLoad);
+    D=merged.menus;
+    wks=merged.weeks;
+    wI=0;
+    dataLoaded=true;
+
+    document.getElementById('pageTitle').textContent='매일아침';
+    buildCalendar(primaryData.year,primaryData.month);
+    // 오늘이 포함된 주로 자동 이동
+    const now=new Date();now.setHours(0,0,0,0);
+    const todayDs=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    const twI=wks.findIndex(wk=>wk.includes(todayDs));
+    if(twI>=0)wI=twI;
+    af();
+    rw();
+    updateSummary();
+  }catch(e){
+    D={};wks=[];dataLoaded=false;
+    document.getElementById('calWrap').innerHTML='<div class="empty-msg">식단 데이터를 불러올 수 없습니다.</div>';
+  }
+}
+
+// ── Build calendar (dynamic) ──
+function buildCalendar(year,month){
+  const wrap=document.getElementById('calWrap');
+  const firstDay=new Date(year,month-1,1);
+  let emptyCells=firstDay.getDay()===0?0:((firstDay.getDay()+6)%7);
+  const lastDate=new Date(year,month,0).getDate();
+
+  let h='<div class="cal">';
+  h+='<div class="ch">월</div><div class="ch">화</div><div class="ch">수</div>';
+  h+='<div class="ch">목</div><div class="ch">금</div><div class="ch sa">토</div>';
+
+  for(let i=0;i<emptyCells;i++)h+='<div class="cd em"></div>';
+
+  for(let day=1;day<=lastDate;day++){
+    const d=new Date(year,month-1,day);
+    if(d.getDay()===0)continue;
+    const ds=`${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const isSat=d.getDay()===6;
+    const now=new Date();now.setHours(0,0,0,0);
+    const dDate=new Date(year,month-1,day);dDate.setHours(0,0,0,0);
+    const isPast=dDate<now;
+    const isToday=dDate.getTime()===now.getTime();
+    let cls=isSat?' sa':'';
+    if(isPast)cls+=' past';
+    if(isToday)cls+=' today';
+    const its=D[ds]||[];
+
+    if(!its.length){
+      h+=`<div class="cd em${cls}"><div class="dn">${day}</div></div>`;
+    }else{
+      const secOrder=['오전간식','점심','오후간식'];
+      const secMap={};
+      its.forEach(it=>{const s=it.sec||'점심';if(!secMap[s])secMap[s]=[];secMap[s].push(it.name.split('\n')[0]);});
+      const parts=[];
+      secOrder.forEach(s=>{const ns=secMap[s]||[];if(ns.length)parts.push(ns.map(n=>esc(n)).join('<br>'));});
+      const preview=parts.join('<span class="mp-div"></span>');
+      h+=`<div class="cd${cls}" data-d="${ds}" onclick="mc('${ds}')"><div class="dn">${day}</div><div class="dt"><span class="ad"></span><span class="sd"></span></div><div class="mp">${preview}</div></div>`;
+    }
+  }
+
+  let lastShown=new Date(year,month,0);
+  if(lastShown.getDay()===0)lastShown.setDate(lastShown.getDate()-1);
+  const lastCol=(lastShown.getDay()+6)%7;
+  for(let i=0;i<5-lastCol;i++)h+='<div class="cd em"></div>';
+
+  h+='</div>';
+  wrap.innerHTML=h;
+}
+
+// ── Summary ──
+function updateSummary(){
+  const el=document.getElementById('stSummary');
+  const txt=document.getElementById('sumText');
+  const center=centers.find(c=>c.id===currentCenter);
+  if(!currentCenter&&!F.size){el.style.display='none';return;}
+  el.style.display='block';
+  let html='';
+  if(center)html+=`<strong>${center.name}</strong>`;
+  else html+='<strong>어린이집을 선택하세요</strong>';
+  if(F.size){
+    html+=`<br>알레르기 ${F.size}종 필터링 중`;
+    html+='<div class="al-tags">';
+    [...F].sort((a,b)=>a-b).forEach(n=>{html+=`<span class="al-tag">${n}. ${AN[n]}</span>`;});
+    html+='</div>';
+  }
+  txt.innerHTML=html;
+}
+
+// ── Tab badge ──
+function updateTabBadge(){
+  const gear=document.getElementById('gearBtn');
+  if(!gear)return;
+  gear.innerHTML=F.size?`설정<span class="gear-count">${F.size}</span>`:'설정';
+}
+
+// ── Allergy chips (compact tags in detail panel) ──
+function buildAllergyChips(){
+  if(!F.size)return '';
+  const chips=[...F].sort((a,b)=>a-b).map(n=>`<span class="wp-al-chip">${AN[n]}</span>`).join('');
+  return `<div class="wp-allergy-row" onclick="toggleSettings()" title="알레르기 설정 변경">🏷 ${chips}</div>`;
+}
+function updateFilterBar(){
+  // 기존 필터 바 제거됨 — 상세 패널 칩으로 대체
+  // rwD() 호출 시 buildAllergyChips()가 렌더링
+}
+
+// ── Main tab switching ──
+function sw(t){
+  const tabs=['w','m'];
+  document.querySelectorAll('.tb').forEach((b,i)=>b.classList.toggle('on',tabs[i]===t));
+  document.querySelectorAll('.tc').forEach(c=>c.classList.remove('on'));
+  document.getElementById('t-'+t).classList.add('on');
+  if(t==='w'&&dataLoaded)rw();
+  if(t==='m'&&dataLoaded)af();
+}
+
+// ── Settings panel ──
+function toggleSettings(){
+  const p=document.getElementById('settingsPanel');
+  p.classList.toggle('open');
+}
+function closeSettings(){
+  document.getElementById('settingsPanel').classList.remove('open');
+}
+function saveAndClose(){
+  saveSettings();
+  const btn=document.getElementById('saveBtn');
+  btn.textContent='저장 완료!';btn.classList.add('saved');
+  setTimeout(()=>{
+    btn.textContent='저장하고 닫기';btn.classList.remove('saved');
+    closeSettings();
+  },500);
+}
+
+// ── Allergy helpers ──
+function ihf(it){return F.size>0&&it.allergy&&it.allergy.some(n=>F.has(n));}
+function dhf(ds){return(D[ds]||[]).some(it=>ihf(it));}
+function dhs(ds){return(D[ds]||[]).some(it=>ihf(it)&&it.rm&&it.rm.length>0);}
+
+function af(){
+  document.querySelectorAll('.cd[data-d]').forEach(el=>{
+    const ds=el.dataset.d,ad=el.querySelector('.ad'),sd=el.querySelector('.sd');
+    const h=F.size>0&&dhf(ds),s=F.size>0&&dhs(ds);
+    if(ad)ad.style.display=h?'block':'none';
+    if(sd)sd.style.display=s?'block':'none';
+    el.style.borderColor=h?'var(--alert-light)':'';
+    el.style.background=h?'var(--alert-bg)':'';
+    const mp=el.querySelector('.mp');
+    if(mp){
+      const its=D[ds]||[];
+      const secOrder=['오전간식','점심','오후간식'];
+      const secMap={};
+      its.forEach(it=>{const sc=it.sec||'점심';if(!secMap[sc])secMap[sc]=[];secMap[sc].push(it);});
+      const parts=[];
+      secOrder.forEach(sc=>{
+        const items=secMap[sc]||[];if(!items.length)return;
+        const names=items.map(it=>{
+          const n=it.name.split('\n')[0];const en=esc(n);
+          if(F.size===0)return en;
+          const hit=it.allergy&&it.allergy.some(a=>F.has(a));
+          if(!hit)return en;
+          const hasSauce=it.rm&&it.rm.length>0;
+          return hasSauce?`<span class="ms">${en}</span>`:`<span class="ma">${en}</span>`;
+        });
+        parts.push(names.join('<br>'));
+      });
+      mp.innerHTML=parts.join('<span class="mp-div"></span>');
+    }
+  });
+  document.querySelectorAll('.wh .at').forEach(el=>el.classList.toggle('sh',F.size>0));
+  document.querySelectorAll('.wh .sb').forEach(el=>el.classList.toggle('sh',F.size>0));
+}
+
+// ── Monthly click → today tab ──
+function mc(ds){
+  const wi=wks.findIndex(wk=>wk.includes(ds));
+  if(wi<0)return;
+  wI=wi;
+  sw('w');
+  setTimeout(()=>wc2(ds),50);
+}
+
+// ── Weekly ──
+function pw(){if(wI>0){wI--;rw();}}
+function nw(){if(wI<wks.length-1){wI++;rw();}}
+function rw(){
+  const row=document.getElementById('wR');
+  const wp=document.getElementById('wP');
+  if(!dataLoaded||!currentCenter){
+    row.innerHTML=`<div class="td-onboard">
+      <div class="td-onboard-title">어린이집을 먼저 선택해주세요</div>
+      <div class="td-onboard-desc">설정에서 어린이집과 알레르기를 선택하면<br>매일 아침 식단을 바로 확인할 수 있어요.</div>
+      <button class="td-onboard-btn" onclick="toggleSettings()">설정하기</button>
+    </div>`;
+    wp.classList.remove('sh');
+    return;
+  }
+  const wk=wks[wI];if(!wk)return;
+  const fds=wk.filter(d=>d);
+  if(!fds.length){row.innerHTML='';return;}
+  row.innerHTML='';
+  const wnow=new Date();wnow.setHours(0,0,0,0);
+  const todayStr=`${wnow.getFullYear()}-${String(wnow.getMonth()+1).padStart(2,'0')}-${String(wnow.getDate()).padStart(2,'0')}`;
+  let autoSelectDs=null;
+  wk.forEach(ds=>{
+    if(!ds)return;
+    const d=new Date(ds+'T00:00:00');
+    const its=D[ds]||[],c=document.createElement('div');c.className='wc';c.dataset.d=ds;
+    const wd2=new Date(ds+'T00:00:00');wd2.setHours(0,0,0,0);
+    if(wd2<wnow)c.classList.add('past');
+    if(wd2.getTime()===wnow.getTime()){c.classList.add('today');if(its.length)autoSelectDs=ds;}
+    if(!its.length){
+      c.classList.add('em');
+      c.innerHTML=`<div class="wd">${dk[d.getDay()]}</div><div class="wdt">${d.getDate()}</div>`;
+      row.appendChild(c);return;
+    }
+    const hw=F.size>0&&dhf(ds),hs2=F.size>0&&dhs(ds);
+    const adS=hw?'display:block':'',sdS=hs2?'display:block':'';
+    c.innerHTML=`<div class="wdots"><span class="wd-a" style="${adS}"></span><span class="wd-s" style="${sdS}"></span></div><div class="wd">${dk[d.getDay()]}</div><div class="wdt">${d.getDate()}</div>`;
+    if(wp.dataset.d===ds)c.classList.add('ac');
+    c.onclick=()=>wc2(ds);row.appendChild(c);
+  });
+  if(wp.dataset.d&&wk.includes(wp.dataset.d)){rwD(wp.dataset.d);}
+  else if(autoSelectDs){wc2(autoSelectDs);}
+  else{
+    const firstWithData=fds.find(d=>(D[d]||[]).length>0);
+    if(firstWithData)wc2(firstWithData);
+    else wp.classList.remove('sh');
+  }
+}
+function wc2(ds){
+  document.querySelectorAll('.wc').forEach(e=>e.classList.remove('ac'));
+  const el=document.querySelector(`.wc[data-d="${ds}"]`);if(el)el.classList.add('ac');
+  rwD(ds);const p=document.getElementById('wP');if(p.classList.contains('sh'))p.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+// Sauce badge HTML
+function sbH(it){
+  if(!it.rm||!it.rm.length)return'';
+  const v=F.size>0?' sh':'';
+  const rmL=it.rm.map(n=>AN[n]).join('\u00b7');
+  if(it.ig&&it.ig.length)return`<span class="sb p${v}" title="양념 제외 시 일부 대응 가능">양념 제외 가능</span>`;
+  return`<span class="sb f${v}" title="${rmL}: 양념 제외로 대응 가능">양념 제외 가능</span>`;
+}
+// Allergy tags HTML
+function atH(it){
+  if(!it.allergy||!it.allergy.length)return'';
+  const v=F.size>0?' sh':'';
+  let h=`<span class="at${v}">`;
+  it.allergy.forEach(n=>{const hl=F.has(n)?' hl':'';h+=`<span class="ag${hl}">${n}</span>`;});
+  return h+'</span>';
+}
+
+// ── Detail panel renderer ──
+function rwD(ds){
+  const p=document.getElementById('wP');p.dataset.d=ds;
+  const its=D[ds]||[];if(!its.length){p.classList.remove('sh');return;}
+  const d=new Date(ds+'T00:00:00'),dkn=dk[d.getDay()];
+  const wnow=new Date();wnow.setHours(0,0,0,0);
+  const todayStr=`${wnow.getFullYear()}-${String(wnow.getMonth()+1).padStart(2,'0')}-${String(wnow.getDate()).padStart(2,'0')}`;
+  const isToday=ds===todayStr;
+  const tagHtml=isToday?'<span style="font-size:.72rem;font-weight:600;color:#fff;background:var(--brand);border-radius:4px;padding:2px 6px;margin-left:6px;vertical-align:middle">오늘</span>':'';
+  let h=`<div class="wp-top"><div class="wpt">${d.getMonth()+1}월 ${d.getDate()}일 (${dkn})${tagHtml}</div></div>`;
+  h+=buildAllergyChips();
+  h+=buildInsight(its);
+  h+=renderDayItems(ds,its,true);
+  p.innerHTML=h;p.classList.add('sh');
+}
+
+// ── Insight block builder ──
+function buildInsight(its){
+  const lunchItems=its.filter(it=>(it.sec||'점심')==='점심');
+  const mainDish=lunchItems.find(it=>it.allergy&&it.allergy.length>2)||lunchItems[1]||lunchItems[0];
+  const mainName=mainDish?esc(mainDish.name.split('\n')[0]):'';
+  if(F.size>0){
+    const hitItems=its.filter(it=>it.allergy&&it.allergy.some(n=>F.has(n)));
+    const sauceItems=hitItems.filter(it=>it.rm&&it.rm.length>0);
+    if(hitItems.length>0){
+      const hitAllergens=new Set();
+      hitItems.forEach(it=>it.allergy.filter(n=>F.has(n)).forEach(n=>hitAllergens.add(n)));
+      const aNames=[...hitAllergens].sort((a,b)=>a-b).map(n=>AN[n]).join(', ');
+      let msg=`<b>${aNames}</b> 포함 메뉴가 <b>${hitItems.length}개</b> 있어요`;
+      if(sauceItems.length>0)msg+=`<div class="ins-detail">${sauceItems.length}개는 양념 제외로 대체할 수 있어요</div>`;
+      return `<div class="td-insight ins-warn">${msg}</div>`;
+    }else{
+      let msg=`설정한 알레르기와 겹치는 메뉴가 없어요`;
+      if(mainName)msg+=`<div class="ins-detail">점심 메인은 ${mainName}</div>`;
+      return `<div class="td-insight ins-safe">${msg}</div>`;
+    }
+  }
+  return '';
+}
+// ── Day items renderer ──
+function renderDayItems(ds,its,withCheck){
+  let h='<ul class="wl2">';let prevSec='';
+  its.forEach((it,idx)=>{
+    if(it.sec&&it.sec!==prevSec){h+=`<li class="sec-hd">${it.sec}</li>`;prevSec=it.sec;}
+    const id=`r_${ds}_${idx}`;
+    const isHit=F.size>0&&it.allergy&&it.allergy.some(n=>F.has(n));
+    let rc;
+    if(it.recipe){
+      rc=it.recipe.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+      if(it.rm&&it.rm.length&&it.ss){
+        const se=it.ss.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        const rmL=it.rm.map(n=>AN[n]).join('\u00b7');
+        let note;
+        if(it.ig&&it.ig.length){
+          const igL=it.ig.map(n=>AN[n]).join('\u00b7');
+          note=`<b>양념 제외 시 <span class="rm-list">${rmL}</span> 대응 가능</b> (${igL}은 재료 자체에 포함)`;
+        }else{
+          note=`<b>양념 제외 시 <span class="rm-list">${rmL}</span> 모두 대응 가능</b> — 간장 대신 소금으로 대체 요청하세요.`;
+        }
+        rc+=`<div class="sn">${note}<br><em>${se}</em></div>`;
+      }
+    }else{rc='<span class="nr">별도 조리방법 없음</span>';}
+    const altH=it.alt?`<span class="alt-tag">${esc(it.alt)}</span>`:'';
+    const chkCls=(withCheck&&isHit)?' chk':'';
+    const chkTxt=(withCheck&&isHit)?'✓':'';
+    h+=`<li class="wi${chkCls}" id="li_${id}"><div class="ck${(withCheck&&isHit)?' done':''}" onclick="tgCk(this.closest('.wi'),event)">${chkTxt}</div><div class="wh" onclick="tr('${id}')"><span class="wh-name">${esc(it.name)}${altH}</span>${sbH(it)}${atH(it)}<span class="ar">&#9660;</span></div><div class="rc" id="${id}"><p>${rc}</p></div></li>`;
+  });
+  return h+'</ul>';
+}
+function tr(id){const e=document.getElementById(id),h=e.previousElementSibling;e.classList.toggle('op');h.classList.toggle('op');}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+// ── Search ──
+function toggleSearch(){
+  const area=document.getElementById('srchArea');
+  const btn=document.getElementById('srchToggle');
+  const open=area.style.display==='none';
+  area.style.display=open?'':'none';
+  btn.style.display=open?'none':'';
+  if(open)document.getElementById('sQ').focus();
+}
+// ── Search category synonyms & recipe-searchable keywords ──
+const SR_CAT={
+  '과일':['사과','오렌지','바나나','딸기','블루베리','키위','토마토','포도','수박','참외','메론','멜론','귤','감귤','복숭아','체리','망고','자두','과일','주스','과채'],
+  '채소':['브로콜리','시금치','당근','양배추','애호박','오이','피망','파프리카','콩나물','숙주','무','양파','감자','고구마','단호박'],
+  '해산물':['새우','오징어','가자미','삼치','고등어','임연수','멸치','해물','생선','조개']
+};
+const SR_RECIPE_KW=['소고기','돼지고기','돼지','닭고기','닭','새우','오징어'];
+function doSr(){
+  const q=document.getElementById('sQ').value.trim().toLowerCase();
+  const cl=document.getElementById('sC');
+  const sr=document.getElementById('sR');
+  cl.classList.toggle('sh',q.length>0);
+  if(!q){clrSr();return;}
+  // Expand category synonyms
+  const catTerms=SR_CAT[q]||null;
+  const searchRecipe=SR_RECIPE_KW.some(kw=>q.includes(kw))||!!catTerms;
+  let cnt=0;
+  let label=q;
+  if(catTerms)label=q+' ('+catTerms.length+'종)';
+  document.querySelectorAll('.cd[data-d]').forEach(el=>{
+    const ds=el.dataset.d,its=D[ds]||[];
+    const match=its.some(it=>{
+      const nm=it.name.toLowerCase();
+      const rc=(it.recipe||'').toLowerCase();
+      if(catTerms){
+        return catTerms.some(t=>nm.includes(t)||(searchRecipe&&rc.includes(t)));
+      }
+      if(nm.includes(q))return true;
+      if(searchRecipe&&rc.includes(q))return true;
+      return false;
+    });
+    el.classList.toggle('sr-hl',match);
+    el.classList.toggle('sr-dim',!match);
+    if(match)cnt++;
+  });
+  sr.style.display='block';
+  sr.textContent=cnt>0?`"${label}" 검색 결과: ${cnt}일`:`"${label}" 검색 결과 없음`;
+}
+function clrSr(){
+  document.getElementById('sQ').value='';
+  document.getElementById('sC').classList.remove('sh');
+  document.getElementById('sR').style.display='none';
+  document.querySelectorAll('.cd[data-d]').forEach(el=>{el.classList.remove('sr-hl','sr-dim');});
+}
+
+// ── Strikethrough ──
+function tgCk(li,ev){
+  ev.stopPropagation();
+  li.classList.toggle('chk');
+  const ck=li.querySelector('.ck');
+  ck.classList.toggle('done');
+  ck.textContent=ck.classList.contains('done')?'\u2713':'';
+}
+
+// ── Copy (share to daycare) ──
+function cpDay(ds){
+  const d=new Date(ds+'T00:00:00'),dkn=dk[d.getDay()];
+  const center=centers.find(c=>c.id===currentCenter);
+  const cName=center?center.name:'';
+  const title=`${d.getMonth()+1}월 ${d.getDate()}일 (${dkn}) ${cName}`;
+  const its=D[ds]||[];
+  const secNames={'오전간식':'오전','점심':'점심','오후간식':'오후'};
+  const secOrder=['오전간식','점심','오후간식'];
+  const byS={};
+  its.forEach((it,idx)=>{
+    const s=it.sec||'점심';if(!byS[s])byS[s]=[];
+    const li=document.getElementById(`li_r_${ds}_${idx}`);
+    const checked=li&&li.classList.contains('chk');
+    const name=it.name.split('\n')[0];
+    byS[s].push(checked?`${name} ❌`:`${name} ✅`);
+  });
+  const lines=[title];
+  secOrder.forEach(s=>{
+    if(byS[s]&&byS[s].length)lines.push(`[${secNames[s]}] ${byS[s].join(', ')}`);
+  });
+  if(F.size>0){
+    const aNames=[...F].sort((a,b)=>a-b).map(n=>AN[n]).join(', ');
+    lines.push(`\n⚠️ 알레르기: ${aNames}`);
+  }
+  const text=lines.join('\n');
+  navigator.clipboard.writeText(text).then(()=>{
+    const btn=document.querySelector('.cp-btn');
+    btn.textContent='복사 완료!';btn.classList.add('ok');
+    setTimeout(()=>{btn.textContent='어린이집에 보내기';btn.classList.remove('ok');},1500);
+  });
+}
+
+
+// ── Save & Go ──
+// ── Reset All ──
+function resetAll(){
+  if(!confirm('지역, 알레르기 설정을 모두 지울까요?'))return;
+  localStorage.removeItem(STORE_KEY);
+  currentCenter='';currentMonth='';F.clear();
+  document.getElementById('regionSel').value='';
+  document.getElementById('monthSection').style.display='none';
+  document.getElementById('monthSel').innerHTML='';
+  document.querySelectorAll('.al-chip').forEach(c=>c.classList.remove('on'));
+  document.getElementById('stSummary').style.display='none';
+  dataLoaded=false;D={};
+  updateSummary();updateFilterBar();updateTabBadge();
+  const btn=document.getElementById('resetBtn');
+  btn.textContent='초기화 완료';
+  setTimeout(()=>{btn.textContent='설정 초기화';},800);
+}
+
+
+// (Today carousel removed — integrated into weekly detail panel)
+
+// ── Products ──
+function buildProducts(){
+  // Build tag filters
+  const tags=new Set(['전체']);
+  products.forEach(p=>{if(p.tag)tags.add(p.tag);});
+  const tagWrap=document.getElementById('prodTags');
+  tagWrap.innerHTML='';
+  tags.forEach(tag=>{
+    const el=document.createElement('span');
+    el.className='prod-tag'+(tag===currentProdTag?' on':'');
+    el.textContent=tag;
+    el.onclick=()=>{currentProdTag=tag;buildProducts();};
+    tagWrap.appendChild(el);
+  });
+
+  // Build product grid
+  const grid=document.getElementById('prodGrid');
+  const filtered=currentProdTag==='전체'?products:products.filter(p=>p.tag===currentProdTag);
+
+  if(!filtered.length){
+    grid.innerHTML='<div class="prod-empty">등록된 추천 상품이 없습니다.</div>';
+    return;
+  }
+
+  grid.innerHTML=filtered.map(p=>`
+    <a class="prod-card" href="${esc(p.url)}" target="_blank" rel="noopener noreferrer">
+      <img class="prod-img" src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" onerror="this.style.display='none'">
+      <div class="prod-info">
+        <div class="prod-badge">${esc(p.tag||'추천')}</div>
+        <div class="prod-name">${esc(p.name)}</div>
+        <div class="prod-desc">${esc(p.desc)}</div>
+        <div class="prod-bottom">
+          <span class="prod-price">${esc(p.price)}</span>
+          <span class="prod-cta">구매하기 &#8250;</span>
+        </div>
+      </div>
+    </a>
+  `).join('');
+}
+
+// ── Auto-navigate on load ──
+document.addEventListener('DOMContentLoaded',async()=>{
+  await init();
+  // 설정이 없으면 자동으로 설정 패널 열기
+  if(!currentCenter)toggleSettings();
+});
+</script>
+</body>
+</html>
