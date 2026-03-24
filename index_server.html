@@ -34,8 +34,10 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
 .tc{display:none}.tc.on{display:block}
 
 /* ── Settings panel (overlay) ── */
-.settings-panel{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:100;padding:28px 20px;overflow-y:auto;animation:slideUp .25s ease}
-.settings-panel.open{display:block}
+.settings-panel{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:100;animation:slideUp .25s ease;flex-direction:column}
+.settings-panel.open{display:flex}
+.sp-scroll{flex:1;overflow-y:auto;padding:28px 20px 20px}
+.sp-bottom{padding:12px 20px;padding-bottom:max(12px,env(safe-area-inset-bottom));border-top:1px solid var(--border-light);background:var(--bg)}
 @keyframes slideUp{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}
 .sp-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
 .sp-header h2{font-size:1.2rem;font-weight:700}
@@ -225,7 +227,7 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
 .td-onboard-btn{display:inline-block;padding:12px 32px;background:var(--brand);color:#fff;border-radius:10px;font-size:.9rem;font-weight:600;border:none;cursor:pointer;font-family:inherit;transition:all .15s}
 .td-onboard-btn:active{opacity:.9}
 /* ── Save button in settings ── */
-.st-save-btn{display:block;width:100%;padding:14px;margin-top:24px;background:var(--brand);color:#fff;border:none;border-radius:10px;font-size:.95rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .15s;letter-spacing:-.01em}
+.st-save-btn{display:block;width:100%;padding:14px;background:var(--brand);color:#fff;border:none;border-radius:10px;font-size:.95rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .15s;letter-spacing:-.01em}
 .st-save-btn:active{opacity:.9}
 .st-save-btn.saved{background:var(--ok);pointer-events:none}
 .st-reset-btn{display:block;width:100%;padding:12px;margin-top:10px;background:none;color:var(--text3);border:1px solid var(--border);border-radius:10px;font-size:.88rem;font-weight:500;font-family:inherit;cursor:pointer;transition:all .15s}
@@ -324,42 +326,46 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
 
 <!-- SETTINGS PANEL (overlay) -->
 <div class="settings-panel" id="settingsPanel">
-  <div class="sp-header"><h2>설정</h2><button class="sp-close" onclick="closeSettings()">✕</button></div>
-  <div class="st-section">
-    <div class="st-label">지역 선택</div>
-    <select class="st-select" id="regionSel" onchange="onRegionChange()">
-      <option value="">지역을 선택하세요</option>
-    </select>
-  </div>
-  <div class="st-section" id="monthSection" style="display:none">
-    <div class="st-label">월 선택</div>
-    <select class="st-select" id="monthSel" onchange="onMonthChange()">
-    </select>
-  </div>
-  <div class="st-section">
-    <div class="st-label">우리 아이 알레르기</div>
-    <div class="st-desc">해당하는 알레르기 항목을 선택하세요. 식단 탭에서 자동으로 표시됩니다.</div>
-    <div class="al-grid" id="alGrid"></div>
-  </div>
+  <div class="sp-scroll">
+    <div class="sp-header"><h2>설정</h2><button class="sp-close" onclick="closeSettings()">✕</button></div>
+    <div class="st-section">
+      <div class="st-label">지역 선택</div>
+      <select class="st-select" id="regionSel" onchange="onRegionChange()">
+        <option value="">지역을 선택하세요</option>
+      </select>
+    </div>
+    <div class="st-section" id="monthSection" style="display:none">
+      <div class="st-label">월 선택</div>
+      <select class="st-select" id="monthSel" onchange="onMonthChange()">
+      </select>
+    </div>
+    <div class="st-section">
+      <div class="st-label">우리 아이 알레르기</div>
+      <div class="st-desc">해당하는 알레르기 항목을 선택하세요. 식단 탭에서 자동으로 표시됩니다.</div>
+      <div class="al-grid" id="alGrid"></div>
+    </div>
 
-  <div class="st-section">
-    <label class="st-toggle">
-      <input type="checkbox" id="satToggle" onchange="onSatToggle()">
-      <span class="st-toggle-label">토요일 식단 숨기기</span>
-    </label>
+    <div class="st-section">
+      <label class="st-toggle">
+        <input type="checkbox" id="satToggle" onchange="onSatToggle()">
+        <span class="st-toggle-label">토요일 식단 숨기기</span>
+      </label>
+    </div>
+
+    <div class="st-summary" id="stSummary" style="display:none">
+      <div id="sumText"></div>
+    </div>
+
+    <button class="st-reset-btn" id="resetBtn" onclick="resetAll()">설정 초기화</button>
+
+    <div class="ft-cta" style="margin-top:32px">
+      <div class="ft-cta-title">우리 어린이집 식단도 올리고 싶다면?</div>
+      <div class="ft-cta-desc">어린이집 이름과 식단표 파일만 보내주세요. 확인 후 등록해드려요.</div>
+      <a class="ft-cta-btn" href="#" id="applyLink" target="_blank">신청하기</a>
+    </div>
   </div>
-
-  <div class="st-summary" id="stSummary" style="display:none">
-    <div id="sumText"></div>
-  </div>
-
-  <button class="st-save-btn" id="saveBtn" onclick="saveAndClose()">저장하고 닫기</button>
-  <button class="st-reset-btn" id="resetBtn" onclick="resetAll()">설정 초기화</button>
-
-  <div class="ft-cta" style="margin-top:32px">
-    <div class="ft-cta-title">우리 어린이집 식단도 올리고 싶다면?</div>
-    <div class="ft-cta-desc">어린이집 이름과 식단표 파일만 보내주세요. 확인 후 등록해드려요.</div>
-    <a class="ft-cta-btn" href="#" id="applyLink" target="_blank">신청하기</a>
+  <div class="sp-bottom">
+    <button class="st-save-btn" id="saveBtn" onclick="saveAndClose()">저장하고 닫기</button>
   </div>
 </div>
 
@@ -1188,8 +1194,6 @@ function swipeDay(dir){
 document.addEventListener('DOMContentLoaded',async()=>{
   await init();
   initSwipe();
-  // 설정이 없으면 자동으로 설정 패널 열기
-  if(!currentCenter)toggleSettings();
 });
 </script>
 </body>
