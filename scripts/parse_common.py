@@ -83,9 +83,16 @@ def extract_allergy_inline(text: str) -> tuple[str, list[int]]:
 
 
 def clean_menu_name(name: str) -> str:
-    """메뉴명 정리: 장식 문자, 연령 표기 제거"""
+    """메뉴명 정리: 장식 문자, 연령 표기, 앞뒤 괄호 제거"""
     name = DECO_CHARS.sub('', name).strip()
     name = re.sub(r'\(만\s*\d+-?\d*세\)', '', name).strip()
+    # 앞뒤가 괄호로 감싸져 있으면 제거: "(견과류(부럼))" → "견과류(부럼)"
+    if name.startswith('(') and name.endswith(')'):
+        inner = name[1:-1]
+        if inner.count('(') == inner.count(')'):
+            name = inner.strip()
+    # '+' 접두어 제거 (용인시 음료 동반 표기: "+둥굴레차" → "둥굴레차")
+    name = re.sub(r'^\+\s*', '', name)
     return name
 
 

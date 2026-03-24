@@ -2,13 +2,14 @@
 """
 매일아침 — 통합 테이블 파서
 
-영등포구, 성남시, 동대문구 등 "큰 테이블" 형태의 식단표를 하나의 파서로 처리.
+영등포구, 성남시, 동대문구, 용인시 등 "큰 테이블" 형태의 식단표를 하나의 파서로 처리.
 포맷별 차이(열 위치, 알레르기 표기, 페이지)는 자동 감지.
 
 지원 포맷:
   - yeongdeungpo: 19열, 1페이지, 원형숫자 알레르기
   - seongnam: 11열, 1페이지, 인라인 콤마 알레르기
   - dongdaemun: 16열, 2페이지, 원형숫자 알레르기
+  - yongin: 가변열, 1페이지, 원형숫자 알레르기, 요일열 동적 감지
 
 사용법:
   from parse_table import parse_table_pdf, parse_recipe_xlsx, parse_recipe_pdf
@@ -58,7 +59,42 @@ FORMAT_CONFIGS = {
         "meal_offsets": {"오전간식": 1, "점심": 2, "오후간식": 3},
         "block_size": 5,
     },
+    "yongin": {
+        "page": 0,
+        "allergy_fn": extract_allergy_circled,
+        "day_cols": "auto",  # 헤더 행에서 동적 감지 (월/화/수/목/금/토)
+        "week_detect": "date_keyword",  # col[0]에 '날짜' 텍스트
+        "meal_offsets": {"오전간식": 1, "점심": 2, "오후간식": 3},
+        "block_size": 6,  # 날짜 + 오전간식 + 점심 + 오후간식 + 열량 + 원산지
+    },
 }
+
+
+def _has_date_keyword_rows(table: list) -> bool:
+    """테이블 내에 '날짜' 키워드 행이 있으면 True (용인시 감지용)"""
+    for row in table:
+        if row and '날짜' in str(row[0] or '').strip():
+            return True
+    return False
+
+
+def _detect_day_cols_from_header(table: list) -> list[int]:
+    """
+    헤더 행에서 요일(월/화/수/목/금/토) 열 위치를 동적으로 감지.
+    용인시처럼 월별로 열 수가 달라지는 경우에 사용.
+    """
+    day_names = ['월', '화', '수', '목', '금', '토']
+    result = []
+    # 처음 5행 안에서 요일 헤더 찾기
+    for row in table[:5]:
+        cols = []
+        for ci, cell in enumerate(row):
+            val = str(cell or '').strip()
+            if val in day_names:
+                cols.append(ci)
+        if len(cols) >= 5:  # 최소 월~금 5개
+            return cols
+    return result
 
 
 def detect_table_format(pdf_path: str) -> str | None:
@@ -71,12 +107,15 @@ def detect_table_format(pdf_path: str) -> str | None:
                 biggest = max(tables, key=lambda t: len(t))
                 ncols = len(biggest[0]) if biggest else 0
 
-                # 영등포구: 19열+, 요일 헤더
-                if ncols >= 15:
-                    header = biggest[0]
-                    days = [str(c or '') for c in header]
-                    if '월' in days and '화' in days:
-                        return "yeongdeungpo"
+                # 용인시: 요일 헤더 + '날짜' 키워드 행 (열 수 가변)
+                if ncols >= 12:
+                    header_days = [str(c or '') for c in biggest[0]]
+                    if '월' in header_days and '화' in header_days:
+                        if _has_date_keyword_rows(biggest):
+                            return "yongin"
+                        # 영등포구: 요일 헤더 있지만 '날짜' 행 없음
+                        if ncols >= 15:
+                            return "yeongdeungpo"
 
                 # 성남시: 11열, "N주차"
                 if ncols == 11:
@@ -106,6 +145,8 @@ def _detect_year_month(pdf, fmt_config: dict) -> tuple[int, int]:
     text = ''
     for p in pdf.pages[:page_idx + 1]:
         text += (p.extract_text() or '') + '\n'
+    # null 문자 및 특수 공백 제거 (일부 PDF에서 \x00 포함)
+    text = text.replace('\x00', ' ')
 
     # "(N월 식단)" 패턴
     m = re.search(r'\(?(\d{1,2})월\s*식단\)?', text)
@@ -166,6 +207,20 @@ def _is_date_row(row: list, fmt: str, config: dict) -> bool:
         # 동대문구: "일 자" 또는 "일자" 텍스트
         return '일' in first and '자' in first
 
+    elif method == "date_keyword":
+        # 용인시: col[0]에 '날짜' 텍스트
+        if '날짜' in first:
+            return True
+        # 마지막 주 fallback: col[0]이 정확히 빈 문자열 '' (None 아님)
+        # 주석/푸터 행은 col[0]이 None이므로 구분 가능
+        if row[0] == '':
+            count = sum(
+                1 for ci in range(1, min(len(row), 14))
+                if _extract_date_from_cell(str(row[ci] or ''))
+            )
+            return count >= 1
+        return False
+
     return False
 
 
@@ -182,8 +237,15 @@ def _parse_menu_cell(cell_text: str, allergy_fn, merge_prefix: str | None = None
 
     # 전처리: 괄호 안 보조설명 제거 (영등포구 스타일)
     cell_text = re.sub(r'\n?\(([^)]*[/][^)]*)\)', '', cell_text)
-    # 대괄호 제거: "[마시는요구르트]②" → "마시는요구르트②"
-    cell_text = re.sub(r'\[([^\]]+)\]', r'\1', cell_text)
+    # 대괄호 처리:
+    # - 알레르기 번호 포함: "[오곡밥①②⑤⑥]" → "(오곡밥①②⑤⑥)" (대체메뉴로 처리)
+    # - 숫자 없음: "[오렌지]" → "" (대체메뉴 표기지만 생략)
+    def _bracket_replace(m):
+        inner = m.group(1)
+        if re.search(r'[①-⑲]|\d', inner):
+            return f'({inner})'
+        return ''
+    cell_text = re.sub(r'\[([^\]]+)\]', _bracket_replace, cell_text)
 
     lines = cell_text.strip().split('\n')
     i = 0
@@ -329,6 +391,25 @@ def parse_table_pdf(pdf_path: str, fmt: str | None = None) -> dict:
     ncols = len(table[0]) if table else 0
     print(f"  [{fmt}] 감지: {year}년 {month}월, {len(table)}행 x {ncols}열")
 
+    # 동적 day_cols 감지 (용인시 등 가변 열 포맷)
+    day_cols_raw = config["day_cols"]
+    use_merged_cells = (day_cols_raw == "auto")
+    if use_merged_cells:
+        day_cols = _detect_day_cols_from_header(table)
+        if not day_cols:
+            raise ValueError("요일 헤더를 감지할 수 없습니다")
+    else:
+        day_cols = day_cols_raw
+
+    # 셀 병합 함수: start_col~end_col 범위의 non-None 값 합치기
+    def _get_merged_cell(row: list, start_col: int, end_col: int) -> str:
+        parts = []
+        for ci in range(start_col, min(end_col, len(row))):
+            val = str(row[ci] or '').strip()
+            if val:
+                parts.append(val)
+        return ''.join(parts)
+
     menus = {}
     row_idx = 0
 
@@ -341,7 +422,7 @@ def parse_table_pdf(pdf_path: str, fmt: str | None = None) -> dict:
 
         # 날짜 열에서 날짜 추출
         date_cols = {}
-        for ci in config["day_cols"]:
+        for ci in day_cols:
             if ci >= len(row):
                 continue
             dn = _extract_date_from_cell(str(row[ci] or ''))
@@ -353,11 +434,16 @@ def parse_table_pdf(pdf_path: str, fmt: str | None = None) -> dict:
             continue
 
         # 각 날짜에서 끼니별 메뉴 추출
-        for ci, dn in date_cols.items():
+        sorted_day_cols = sorted(date_cols.keys())
+        for i, ci in enumerate(sorted_day_cols):
+            dn = date_cols[ci]
             try:
                 ds = date(year, month, dn).isoformat()
             except ValueError:
                 continue
+
+            # 다음 날짜 열 위치 (셀 병합 범위 계산용)
+            next_ci = sorted_day_cols[i + 1] if i + 1 < len(sorted_day_cols) else len(row)
 
             day_items = []
             for sec_name, offset in config["meal_offsets"].items():
@@ -367,7 +453,11 @@ def parse_table_pdf(pdf_path: str, fmt: str | None = None) -> dict:
                 sec_row = table[ri]
                 if ci >= len(sec_row):
                     continue
-                cell_text = str(sec_row[ci] or '')
+                # 가변 열 포맷(용인시)은 병합 읽기, 고정 열 포맷은 단일 셀 읽기
+                if use_merged_cells:
+                    cell_text = _get_merged_cell(sec_row, ci, next_ci)
+                else:
+                    cell_text = str(sec_row[ci] or '')
                 for item in _parse_menu_cell(cell_text, allergy_fn, merge_prefix):
                     item['sec'] = sec_name
                     day_items.append(item)
@@ -393,7 +483,11 @@ def parse_recipe_xlsx(xlsx_path: str) -> dict:
     recipes = {}
 
     # 주별 시트 또는 월별 시트 찾기
-    target_sheets = [s for s in wb.sheetnames if re.search(r'\d+주|\d+월', s)]
+    # 패턴: "N주차", "N월", "M.D~M.D" (용인시 스타일) 등
+    target_sheets = [s for s in wb.sheetnames if re.search(r'\d+주|\d+월|\d+\.\d+', s)]
+    # 아무 시트도 안 걸리면 전체 시트 처리
+    if not target_sheets:
+        target_sheets = wb.sheetnames
 
     for sheet_name in target_sheets:
         ws = wb[sheet_name]
