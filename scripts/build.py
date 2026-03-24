@@ -25,8 +25,8 @@ SCRIPTS_DIR = ROOT / 'scripts'
 sys.path.insert(0, str(SCRIPTS_DIR))
 from generate_menu import extract_menus, detect_month_year, extract_allergies, match_allergies, analyze_sauce, build_json_data
 from parse_pdf import parse_pdf_menu, build_json_from_pdf
-from parse_yeongdeungpo import parse_yd_pdf, parse_yd_excel, build_yd_json
-from parse_seongnam import parse_sn_pdf, parse_sn_excel, build_sn_json
+from parse_table import detect_table_format, parse_table_pdf, parse_recipe_xlsx, parse_recipe_pdf
+from parse_common import build_output_json
 
 # 지역명 → ID 매핑
 REGION_MAP = {
@@ -37,6 +37,7 @@ REGION_MAP = {
     "용인시": "yongin",
     "경기도성남시": "seongnam",
     "성남시": "seongnam",
+    "동대문구": "dongdaemun",
 }
 
 REGION_NAMES = {v: k for k, v in REGION_MAP.items()}
@@ -50,6 +51,7 @@ REGION_DISPLAY = {
     "용인시": "경기 용인시",
     "경기도성남시": "경기 성남시",
     "성남시": "경기 성남시",
+    "동대문구": "서울 동대문구",
 }
 
 
@@ -84,80 +86,38 @@ def scan_uploads() -> dict:
     return dict(groups)
 
 
-def detect_pdf_format(pdf_path: Path) -> str:
-    """
-    PDF 구조를 분석해서 포맷 타입을 반환.
-    - "yeongdeungpo": 1페이지 대형 테이블 (19열), 원형숫자 알레르기
-    - "seongnam": 11열 테이블, 주차 기반 블록
-    - "standard": 기존 광진구/수원 형식 (5행/주 블록, 괄호형 알레르기)
-    """
-    import pdfplumber
-    try:
-        with pdfplumber.open(str(pdf_path)) as pdf:
-            tables = pdf.pages[0].extract_tables()
-            if not tables:
-                return "standard"
-            biggest = max(tables, key=lambda t: len(t))
-            ncols = len(biggest[0]) if biggest else 0
-            if ncols >= 15:
-                header = biggest[0]
-                days = [str(c or '') for c in header]
-                if '월' in days and '화' in days:
-                    return "yeongdeungpo"
-            if ncols == 11:
-                first_cell = str(biggest[0][0] or '').strip()
-                if re.match(r'\d+주차', first_cell):
-                    return "seongnam"
-            return "standard"
-    except Exception:
-        return "standard"
-
-
-def _process_yeongdeungpo(pdf_file: Path, xlsx_file: Path | None = None) -> dict | None:
-    """영등포구 포맷 처리"""
-    print(f"  [영등포구 포맷] PDF 파싱...")
-    pdf_data = parse_yd_pdf(str(pdf_file))
+def _process_table_format(fmt: str, pdf_file: Path, recipe_file: Path | None = None) -> dict | None:
+    """통합 테이블 파서로 처리 (영등포구, 성남시, 동대문구 등)"""
+    pdf_data = parse_table_pdf(str(pdf_file), fmt)
     recipes = {}
-    if xlsx_file and xlsx_file.exists():
-        print(f"  [영등포구 포맷] Excel 레시피 파싱...")
+    if recipe_file and recipe_file.exists():
+        ext = recipe_file.suffix.lower()
         try:
-            recipes = parse_yd_excel(str(xlsx_file))
+            if ext == '.xlsx':
+                recipes = parse_recipe_xlsx(str(recipe_file))
+            elif ext == '.pdf':
+                recipes = parse_recipe_pdf(str(recipe_file))
         except Exception as e:
-            print(f"  [WARN] Excel 파싱 실패: {e}")
-    return build_yd_json(pdf_data, recipes)
+            print(f"  [WARN] 레시피 파싱 실패: {e}")
+    return build_output_json(pdf_data['year'], pdf_data['month'], pdf_data['menus'], recipes)
 
 
-def _process_seongnam(pdf_file: Path, xlsx_file: Path | None = None) -> dict | None:
-    """성남시 포맷 처리"""
-    print(f"  [성남시 포맷] PDF 파싱...")
-    pdf_data = parse_sn_pdf(str(pdf_file))
-    recipes = {}
+def _process_standard(pdf_file: Path, xlsx_file: Path | None = None) -> dict | None:
+    """광진구/수원 표준 포맷 처리"""
     if xlsx_file and xlsx_file.exists():
-        print(f"  [성남시 포맷] Excel 레시피 파싱...")
+        print(f"  [Excel+PDF] {xlsx_file.name} + {pdf_file.name}")
         try:
-            recipes = parse_sn_excel(str(xlsx_file))
+            menus = extract_menus(str(xlsx_file))
+            year, month = detect_month_year(menus)
+            print(f"  감지: {year}년 {month}월")
+            allergy_data = extract_allergies(str(pdf_file), list(menus.keys()))
+            allergy_match = match_allergies(menus, allergy_data)
+            sauce_data = analyze_sauce(menus, allergy_match)
+            return build_json_data(menus, allergy_match, sauce_data, year, month)
         except Exception as e:
-            print(f"  [WARN] Excel 파싱 실패: {e}")
-    return build_sn_json(pdf_data, recipes)
+            print(f"  [WARN] Excel 파싱 실패 ({e}) → PDF-only로 전환")
 
-
-def _process_excel_pdf(recipe_file: Path, allergy_file: Path) -> dict | None:
-    """엑셀 + PDF 조합으로 처리"""
-    print(f"  메뉴 추출 중...")
-    menus = extract_menus(str(recipe_file))
-    year, month = detect_month_year(menus)
-    print(f"  감지: {year}년 {month}월")
-    print(f"  알레르기 매칭 중...")
-    allergy_data = extract_allergies(str(allergy_file), list(menus.keys()))
-    allergy_match = match_allergies(menus, allergy_data)
-    print(f"  양념 분석 중...")
-    sauce_data = analyze_sauce(menus, allergy_match)
-    print(f"  JSON 생성 중...")
-    return build_json_data(menus, allergy_match, sauce_data, year, month)
-
-
-def _process_pdf_only(pdf_file: Path) -> dict | None:
-    """PDF 하나에서 메뉴+알레르기 추출"""
+    print(f"  [PDF-only] {pdf_file.name}")
     try:
         pdf_data = parse_pdf_menu(str(pdf_file))
         return build_json_from_pdf(pdf_data)
@@ -175,36 +135,30 @@ def process_upload_group(group_key: str, files: list[dict]) -> tuple[dict | None
         print(f"  [SKIP] 지역 매핑 없음: {region_name} → REGION_MAP에 추가 필요")
         return None, None
 
+    # 파일 분류 (식단표 PDF + 레시피 xlsx/pdf)
     pdf_file = None
-    xlsx_file = None
+    recipe_file = None
     for f in files:
+        fpath = UPLOAD_DIR / f['filename']
         if f['subtype'] == '식단표' and f['ext'].lower() == 'pdf':
-            pdf_file = UPLOAD_DIR / f['filename']
-        elif f['subtype'] == '레시피' and f['ext'].lower() == 'xlsx':
-            xlsx_file = UPLOAD_DIR / f['filename']
+            pdf_file = fpath
+        elif f['subtype'] == '레시피':
+            recipe_file = fpath
 
     if not pdf_file or not pdf_file.exists():
         print(f"  [SKIP] 식단표 PDF 없음")
         return None, None
 
-    # 포맷 자동 감지
-    fmt = detect_pdf_format(pdf_file)
-    print(f"  [포맷 감지] {fmt}")
+    # 포맷 자동 감지: 테이블 포맷이면 통합 파서, 아니면 표준 파서
+    fmt = detect_table_format(str(pdf_file))
 
-    if fmt == "seongnam":
-        data = _process_seongnam(pdf_file, xlsx_file)
-    elif fmt == "yeongdeungpo":
-        data = _process_yeongdeungpo(pdf_file, xlsx_file)
-    elif xlsx_file and xlsx_file.exists():
-        print(f"  [Excel+PDF] {xlsx_file.name} + {pdf_file.name}")
-        try:
-            data = _process_excel_pdf(xlsx_file, pdf_file)
-        except Exception as e:
-            print(f"  [WARN] Excel 파싱 실패 ({e}) → PDF-only로 전환")
-            data = _process_pdf_only(pdf_file)
+    if fmt:
+        print(f"  [포맷 감지] {fmt}")
+        data = _process_table_format(fmt, pdf_file, recipe_file)
     else:
-        print(f"  [PDF-only] {pdf_file.name}")
-        data = _process_pdf_only(pdf_file)
+        print(f"  [포맷 감지] standard")
+        xlsx_file = recipe_file if recipe_file and recipe_file.suffix.lower() == '.xlsx' else None
+        data = _process_standard(pdf_file, xlsx_file)
 
     if data is None:
         return None, None
@@ -237,10 +191,9 @@ def main():
     print("매일아침 — 데이터 빌드")
     print("=" * 50)
 
-    results = []      # 메타 정보 리스트
-    all_data = {}      # region_id/month_key → 파싱 데이터
+    results = []
+    all_data = {}
 
-    # uploads/ 폴더 처리
     groups = scan_uploads()
     if groups:
         for key in sorted(groups.keys()):
@@ -253,7 +206,6 @@ def main():
         print("\n[uploads] 비어있음")
 
     if results:
-        # centers 목록 생성
         merged = {}
         for r in results:
             rid = r['id']
@@ -267,8 +219,6 @@ def main():
                     "region": r['region'], "months": [r['month_key']]
                 }
         centers = sorted(merged.values(), key=lambda c: c['name'])
-
-        # index.html에 직접 임베딩
         build_embedded_html(centers, all_data)
         print(f"\n{'=' * 50}")
         print(f"완료! {len(centers)}개 지역 데이터 생성됨")
