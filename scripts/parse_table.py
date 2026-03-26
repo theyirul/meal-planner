@@ -238,8 +238,10 @@ def _parse_menu_cell(cell_text: str, allergy_fn, merge_prefix: str | None = None
     # 전처리: 괄호 안 보조설명 제거 (영등포구 스타일)
     cell_text = re.sub(r'\n?\(([^)]*[/][^)]*)\)', '', cell_text)
     # 대괄호 처리:
+    # - 대괄호 안 줄바꿈 제거 (병합 셀에서 "[메뉴명\n①②③]" 형태 발생)
     # - 알레르기 번호 포함: "[오곡밥①②⑤⑥]" → "(오곡밥①②⑤⑥)" (대체메뉴로 처리)
     # - 숫자 없음: "[오렌지]" → "" (대체메뉴 표기지만 생략)
+    cell_text = re.sub(r'\[([^\]]+)\]', lambda m: '[' + m.group(1).replace('\n', '') + ']', cell_text)
     def _bracket_replace(m):
         inner = m.group(1)
         if re.search(r'[①-⑲]|\d', inner):
@@ -279,6 +281,9 @@ def _parse_menu_cell(cell_text: str, allergy_fn, merge_prefix: str | None = None
 
         # 라벨 스킵
         if line in ('(공통)', '점심', '오전간식', '오후간식', '오후 간식', '(숭늉)'):
+            continue
+        # 안내 문구 스킵 (공지사항, 가정통신문 등)
+        if re.search(r'[※★☆]|가정통신문|확인해\s*주세요|자세한\s*내용', line):
             continue
 
         # / 구분자로 분리 (예: "♣찐감자/우유②")

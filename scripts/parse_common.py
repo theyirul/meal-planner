@@ -32,12 +32,12 @@ DECO_CHARS = re.compile(r'[♬★◉♥♣✔\U000f0074]')
 def extract_allergy_circled(text: str) -> tuple[str, list[int]]:
     """원형숫자 알레르기 추출. "쇠고기장조림⑤⑥⑯" → ("쇠고기장조림", [5, 6, 16])"""
     nums = []
-    clean = text
+    # 원문자 번호 수집 후 한 번에 제거 (인덱스 밀림 방지)
     for match in CIRCLED_PATTERN.finditer(text):
         for ch in match.group():
             if ch in CIRCLED_NUMS:
                 nums.append(CIRCLED_NUMS[ch])
-        clean = clean[:match.start()] + clean[match.end():]
+    clean = CIRCLED_PATTERN.sub('', text)
     # 괄호형도 처리 (혼용 대비)
     paren_pat = re.compile(r'[\(（]([\d,.\s]+)[\)）]')
     for m in paren_pat.finditer(clean):

@@ -330,6 +330,7 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
     <div class="sp-header"><h2>설정</h2><button class="sp-close" onclick="closeSettings()">✕</button></div>
     <div class="st-section">
       <div class="st-label">지역 선택</div>
+      <div class="st-desc">어린이사회복지 급식관리지원센터 식단 데이터를 기반으로 합니다.</div>
       <select class="st-select" id="regionSel" onchange="onRegionChange()">
         <option value="">지역을 선택하세요</option>
       </select>
@@ -341,7 +342,7 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
     </div>
     <div class="st-section">
       <div class="st-label">우리 아이 알레르기</div>
-      <div class="st-desc">해당하는 알레르기 항목을 선택하세요. 식단 탭에서 자동으로 표시됩니다.</div>
+      <div class="st-desc">해당하는 알레르기 항목을 선택하세요. 식단에서 자동으로 표시됩니다. 알레르기가 없다면 선택하지 않아도 괜찮아요.</div>
       <div class="al-grid" id="alGrid"></div>
     </div>
 
@@ -361,7 +362,7 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
     <div class="ft-cta" style="margin-top:32px">
       <div class="ft-cta-title">우리 어린이집 식단도 올리고 싶다면?</div>
       <div class="ft-cta-desc">어린이집 이름과 식단표 파일만 보내주세요. 확인 후 등록해드려요.</div>
-      <a class="ft-cta-btn" href="#" id="applyLink" target="_blank">신청하기</a>
+      <a class="ft-cta-btn" href="https://forms.gle/AP7am5gFHfqus4HXA" id="applyLink" target="_blank">신청하기</a>
     </div>
   </div>
   <div class="sp-bottom">
@@ -670,7 +671,7 @@ async function loadMenuData(){
     updateSummary();
   }catch(e){
     D={};wks=[];dataLoaded=false;
-    document.getElementById('calWrap').innerHTML='<div class="empty-msg">식단 데이터를 불러올 수 없습니다.</div>';
+    document.getElementById('calWrap').innerHTML='<div class="td-onboard"><div class="td-onboard-title">식단을 불러오지 못했어요</div><div class="td-onboard-desc">잠시 후 다시 시도하거나,<br>설정에서 다른 어린이집을 선택해보세요.</div><button class="td-onboard-btn" onclick="toggleSettings()">설정하기</button></div>';
   }
 }
 
@@ -784,8 +785,11 @@ function sw(t){
   document.querySelectorAll('.tb').forEach((b,i)=>b.classList.toggle('on',tabs[i]===t));
   document.querySelectorAll('.tc').forEach(c=>c.classList.remove('on'));
   document.getElementById('t-'+t).classList.add('on');
-  if(t==='w'&&dataLoaded)rw();
-  if(t==='m'&&dataLoaded)af();
+  if(t==='w')rw();
+  if(t==='m'){
+    if(dataLoaded){af();}
+    else{document.getElementById('calWrap').innerHTML=`<div class="td-onboard"><div class="td-onboard-title">어린이집을 선택해주세요</div><div class="td-onboard-desc">설정에서 어린이집을 선택하면<br>월간 식단을 한눈에 볼 수 있어요.</div><button class="td-onboard-btn" onclick="toggleSettings()">설정하기</button></div>`;}
+  }
 }
 
 // ── Settings panel ──
@@ -862,7 +866,7 @@ function rw(){
   const wp=document.getElementById('wP');
   if(!dataLoaded||!currentCenter){
     row.innerHTML=`<div class="td-onboard">
-      <div class="td-onboard-title">어린이집을 먼저 선택해주세요</div>
+      <div class="td-onboard-title">어린이집을 선택해주세요</div>
       <div class="td-onboard-desc">설정에서 어린이집과 알레르기를 선택하면<br>매일 아침 식단을 바로 확인할 수 있어요.</div>
       <button class="td-onboard-btn" onclick="toggleSettings()">설정하기</button>
     </div>`;
