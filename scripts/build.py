@@ -39,6 +39,7 @@ REGION_MAP = {
     "경기도성남시": "seongnam",
     "성남시": "seongnam",
     "동대문구": "dongdaemun",
+    "충북옥천군": "okcheon",
 }
 
 REGION_NAMES = {v: k for k, v in REGION_MAP.items()}
@@ -54,6 +55,7 @@ REGION_DISPLAY = {
     "경기도성남시": "경기 성남시",
     "성남시": "경기 성남시",
     "동대문구": "서울 동대문구",
+    "충북옥천군": "충북 옥천군",
 }
 
 
@@ -62,6 +64,15 @@ def parse_upload_filename(filename: str) -> dict | None:
     filename = unicodedata.normalize('NFC', filename)
     name = Path(filename).stem
     ext = Path(filename).suffix.lstrip('.')
+    # 수동 JSON: {YYYYMM}_{지역}_{연령}_{유형}_수동.json
+    manual_pat = r'^(\d{6})_([가-힣]+)_(.+?)_(.+?)_수동$'
+    mm = re.match(manual_pat, name)
+    if mm and ext == 'json':
+        return {
+            "yyyymm": mm.group(1), "region": mm.group(2),
+            "age": mm.group(3), "type": mm.group(4),
+            "subtype": "수동", "ext": ext, "filename": filename,
+        }
     pattern = r'^(\d{6})_([가-힣]+)_(.+?)_(.+?)_(식단표|레시피)$'
     m = re.match(pattern, name)
     if not m:
@@ -136,6 +147,22 @@ def process_upload_group(group_key: str, files: list[dict]) -> tuple[dict | None
     if not region_id:
         print(f"  [SKIP] 지역 매핑 없음: {region_name} → REGION_MAP에 추가 필요")
         return None, None
+
+    # 수동 JSON 파일 체크
+    for f in files:
+        if f['subtype'] == '수동' and f['ext'] == 'json':
+            json_path = UPLOAD_DIR / f['filename']
+            if json_path.exists():
+                print(f"  [수동 JSON] {f['filename']}")
+                with open(json_path, encoding='utf-8') as jf:
+                    data = json.load(jf)
+                # build_output_json 형식으로 변환
+                data = build_output_json(data['year'], data['month'], data['menus'], {})
+                year, month = data['year'], data['month']
+                month_key = f"{year}-{month:02d}"
+                display_name = REGION_DISPLAY.get(region_name, region_name)
+                result = {"id": region_id, "name": display_name, "region": display_name, "month_key": month_key}
+                return result, data
 
     # 파일 분류 (식단표 PDF + 레시피 xlsx/pdf)
     pdf_file = None
