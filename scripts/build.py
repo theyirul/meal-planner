@@ -40,6 +40,7 @@ REGION_MAP = {
     "성남시": "seongnam",
     "동대문구": "dongdaemun",
     "충북옥천군": "okcheon",
+    "대전중구": "daejeon-junggu",
 }
 
 REGION_NAMES = {v: k for k, v in REGION_MAP.items()}
@@ -56,6 +57,7 @@ REGION_DISPLAY = {
     "성남시": "경기 성남시",
     "동대문구": "서울 동대문구",
     "충북옥천군": "충북 옥천군",
+    "대전중구": "대전 중구",
 }
 
 
