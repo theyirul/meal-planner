@@ -6,6 +6,7 @@
 월간/주간 탭, 알레르기 필터, 양념 제외 분석이 포함된
 인터랙티브 HTML 페이지를 자동 생성한다.
 """
+from __future__ import annotations
 
 import argparse
 import json

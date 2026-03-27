@@ -4,6 +4,7 @@
 
 모든 포맷 파서가 공유하는 상수, 알레르기 추출, JSON 빌더.
 """
+from __future__ import annotations
 
 import re
 from datetime import date, timedelta

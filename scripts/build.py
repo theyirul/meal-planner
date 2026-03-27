@@ -10,6 +10,7 @@ uploads/ 폴더의 파일을 읽어서 index.html에 임베딩합니다.
 사용법:
   python3 scripts/build.py
 """
+from __future__ import annotations
 
 import json
 import re
@@ -25,7 +26,7 @@ SCRIPTS_DIR = ROOT / 'scripts'
 sys.path.insert(0, str(SCRIPTS_DIR))
 from generate_menu import extract_menus, detect_month_year, extract_allergies, match_allergies, analyze_sauce, build_json_data
 from parse_pdf import parse_pdf_menu, build_json_from_pdf
-from parse_table import detect_table_format, parse_table_pdf, parse_recipe_xlsx, parse_recipe_pdf
+from parse_table import detect_table_format, parse_table_pdf, parse_recipe_xlsx, parse_recipe_pdf, _parse_vertical_pdf
 from parse_common import build_output_json
 
 # 지역명 → ID 매핑
@@ -105,6 +106,11 @@ def scan_uploads() -> dict:
 
 def _process_table_format(fmt: str, pdf_file: Path, recipe_file: Path | None = None) -> dict | None:
     """통합 테이블 파서로 처리 (영등포구, 성남시, 동대문구 등)"""
+    # 세로형 포맷: 메뉴+레시피가 한 PDF에 모두 포함
+    if fmt == "dongdaemun_vertical":
+        pdf_data, recipes = _parse_vertical_pdf(str(pdf_file))
+        return build_output_json(pdf_data['year'], pdf_data['month'], pdf_data['menus'], recipes)
+
     pdf_data = parse_table_pdf(str(pdf_file), fmt)
     recipes = {}
     if recipe_file and recipe_file.exists():

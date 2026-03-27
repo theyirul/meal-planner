@@ -15,6 +15,7 @@
   data = parse_pdf_menu("식단표.pdf")
   # → { year, month, menus: { "2026-03-02": [...], ... } }
 """
+from __future__ import annotations
 
 import re
 from datetime import date

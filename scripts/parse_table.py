@@ -15,6 +15,7 @@
 사용법:
   from parse_table import parse_table_pdf, parse_recipe_xlsx, parse_recipe_pdf
 """
+from __future__ import annotations
 
 import re
 from datetime import date
@@ -131,6 +132,12 @@ def detect_table_format(pdf_path: str) -> str | None:
                         # 영등포구: 요일 헤더 있지만 '날짜' 행 없음
                         if ncols >= 15:
                             return "yeongdeungpo"
+
+                # 동대문구 세로형: 6열, 헤더에 '날짜'+'끼니'+'음식명'
+                if ncols == 6:
+                    headers = [str(c or '').strip() for c in biggest[1] if c] if len(biggest) > 1 else []
+                    if '날짜' in headers and '끼니' in headers and '음식명' in headers:
+                        return "dongdaemun_vertical"
 
                 # 성남시: 11열, "N주차"
                 if ncols == 11:
@@ -510,6 +517,102 @@ def parse_table_pdf(pdf_path: str, fmt: str | None = None) -> dict:
 
     print(f"  [{fmt}] {len(menus)}일 추출, 총 {sum(len(v) for v in menus.values())}개 아이템")
     return {"year": year, "month": month, "menus": menus}
+
+
+def _parse_vertical_pdf(pdf_path: str) -> tuple[dict, dict]:
+    """
+    동대문구 세로형 6열 PDF 파싱 (전 페이지 순회).
+
+    구조: [날짜, 끼니, 음식명, 식재료명, 식재료량, 조리방법]
+    - 날짜(col0): "01[수]" — 해당 날짜 첫 행에만 표기
+    - 끼니(col1): "오전간식"/"점심"/"오후간식" — 해당 끼니 첫 행에만 표기
+    - 음식명(col2): 메뉴명+알레르기 — 해당 메뉴 첫 행에만 표기
+    - 조리방법(col5): 레시피 — 해당 메뉴 첫 행에만 표기
+
+    Returns:
+        (menus, recipes) 튜플
+        menus: {date_str: [{"name", "allergy", "sec"}, ...]}
+        recipes: {"메뉴명": "조리방법", ...}
+    """
+    allergy_fn = extract_allergy_circled
+
+    with pdfplumber.open(pdf_path) as pdf:
+        # 연/월 감지 (첫 페이지 제목)
+        text = (pdf.pages[0].extract_text() or '')[:500]
+        m = re.search(r'(\d{4})년\s*(\d{1,2})월', text)
+        if m:
+            year, month = int(m.group(1)), int(m.group(2))
+        else:
+            raise ValueError("연도/월을 감지할 수 없습니다")
+
+        # 전 페이지 테이블 행 수집
+        all_rows = []
+        for page in pdf.pages:
+            tables = page.extract_tables()
+            for table in tables:
+                all_rows.extend(table)
+
+    menus = {}
+    recipes = {}
+    cur_date = None
+    cur_sec = None
+
+    # 끼니명 정규화
+    sec_map = {'오전간식': '오전간식', '점심': '점심', '오후간식': '오후간식'}
+
+    for row in all_rows:
+        if not row or len(row) < 6:
+            continue
+
+        col0 = str(row[0] or '').strip()  # 날짜
+        col1 = str(row[1] or '').strip()  # 끼니
+        col2 = str(row[2] or '').strip()  # 음식명
+        col5 = str(row[5] or '').strip()  # 조리방법
+
+        # 헤더 행 스킵
+        if col0 in ('날짜', '') and col1 == '끼니':
+            continue
+
+        # 날짜 갱신: "01[수]", "02[목]" 등
+        dm = re.match(r'(\d{1,2})\s*[\[（(]\s*[월화수목금토일]', col0)
+        if dm:
+            day_num = int(dm.group(1))
+            try:
+                cur_date = date(year, month, day_num).isoformat()
+            except ValueError:
+                cur_date = None
+            # 생일식단 등 특수 행 스킵
+        elif col0 and not col0.isspace() and cur_date is None:
+            # "[생일식단]" 같은 특수 블록 — 스킵
+            continue
+
+        # 끼니 갱신
+        if col1 in sec_map:
+            cur_sec = sec_map[col1]
+
+        # 음식명이 있으면 새 메뉴 아이템
+        if col2 and cur_date and cur_sec:
+            name, allergy = allergy_fn(col2)
+            name = clean_menu_name(name)
+            if not name:
+                continue
+
+            item = {"name": name, "allergy": allergy, "sec": cur_sec}
+
+            if cur_date not in menus:
+                menus[cur_date] = []
+            menus[cur_date].append(item)
+
+            # 레시피 수집
+            if col5 and col5 not in ('-', 'None', ''):
+                # 안내 문구 필터
+                if not re.match(r'^-\s*(연령|맵거나|1cm)', col5):
+                    if name not in recipes:
+                        recipes[name] = col5
+
+    print(f"  [dongdaemun_vertical] {year}년 {month}월, {len(menus)}일 추출, "
+          f"총 {sum(len(v) for v in menus.values())}개 아이템, 레시피 {len(recipes)}개")
+    return {"year": year, "month": month, "menus": menus}, recipes
 
 
 def parse_recipe_xlsx(xlsx_path: str) -> dict:
