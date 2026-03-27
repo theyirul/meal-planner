@@ -10,6 +10,7 @@
   - seongnam: 11열, 1페이지, 인라인 콤마 알레르기
   - dongdaemun: 16열, 2페이지, 원형숫자 알레르기
   - yongin: 가변열, 1페이지, 원형숫자 알레르기, 요일열 동적 감지
+  - gangseo: 11열, 1페이지, 원형숫자 알레르기, 한글 주차 표기
 
 사용법:
   from parse_table import parse_table_pdf, parse_recipe_xlsx, parse_recipe_pdf
@@ -67,6 +68,14 @@ FORMAT_CONFIGS = {
         "meal_offsets": {"오전간식": 1, "점심": 2, "오후간식": 3},
         "block_size": 6,  # 날짜 + 오전간식 + 점심 + 오후간식 + 열량 + 원산지
     },
+    "gangseo": {
+        "page": 0,
+        "allergy_fn": extract_allergy_circled,
+        "day_cols": [2, 3, 4, 5, 7, 9],  # 월~토 in 11-col (col6,8,10은 빈열)
+        "week_detect": "week_korean",  # col[0]에 '첫째주', '둘째주' 등
+        "meal_offsets": {"오전간식": 1, "점심": 2, "오후간식": 3},
+        "block_size": 5,
+    },
 }
 
 
@@ -122,6 +131,10 @@ def detect_table_format(pdf_path: str) -> str | None:
                     first = str(biggest[0][0] or '').strip()
                     if re.match(r'\d+주차', first):
                         return "seongnam"
+                    # 강서구: 11열, col[1]에 "일자" 텍스트
+                    second = str(biggest[0][1] or '').strip()
+                    if '일자' in second or '요일' in second:
+                        return "gangseo"
 
             # 2페이지 확인 (동대문구 등)
             if len(pdf.pages) >= 2:
@@ -206,6 +219,15 @@ def _is_date_row(row: list, fmt: str, config: dict) -> bool:
     elif method == "date_label":
         # 동대문구: "일 자" 또는 "일자" 텍스트
         return '일' in first and '자' in first
+
+    elif method == "week_korean":
+        # 강서구: col[0]에 한글 주차 표기 ('첫째주', '둘째주' 등) 또는 col[1]에 '일자'/'요일'
+        if first and re.search(r'째\s*주|째\n주', first):
+            return True
+        second = str(row[1] or '').strip() if len(row) > 1 else ''
+        if '일자' in second or '요일' in second:
+            return True
+        return False
 
     elif method == "date_keyword":
         # 용인시: col[0]에 '날짜' 텍스트

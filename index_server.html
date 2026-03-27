@@ -58,6 +58,14 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
 .al-chip.on{background:var(--alert);color:#fff;border-color:var(--alert)}
 .al-chip .n{font-weight:700}
 
+/* Age group toggle */
+.age-toggle{display:flex;gap:8px}
+.age-btn{flex:1;padding:12px 0;border:1.5px solid var(--border);border-radius:var(--radius);background:var(--card);color:var(--text2);font-size:.88rem;font-weight:500;font-family:inherit;cursor:pointer;transition:all .15s;text-align:center;-webkit-tap-highlight-color:transparent}
+.age-btn:active{border-color:var(--brand)}
+.age-btn.on{background:var(--brand);color:#fff;border-color:var(--brand);font-weight:600}
+.age-btn .age-sub{font-size:.75rem;font-weight:400;opacity:.7;margin-top:2px;display:block}
+.age-btn:disabled{pointer-events:none}
+
 /* Toggle */
 .st-toggle{display:flex;align-items:center;gap:10px;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .st-toggle input{width:18px;height:18px;accent-color:var(--brand);cursor:pointer}
@@ -336,6 +344,13 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
         <option value="">지역을 선택하세요</option>
       </select>
     </div>
+    <div class="st-section" id="ageSection">
+      <div class="st-label">우리 아이 반</div>
+      <div class="age-toggle">
+        <button class="age-btn on" data-age="infant" onclick="setAgeGroup('infant')">영아반<span class="age-sub">만 0-2세</span></button>
+        <button class="age-btn" data-age="toddler" onclick="setAgeGroup('toddler')">유아반<span class="age-sub">만 3-5세</span></button>
+      </div>
+    </div>
     <div class="st-section" id="monthSection" style="display:none">
       <div class="st-label">월 선택</div>
       <select class="st-select" id="monthSel" onchange="onMonthChange()">
@@ -433,7 +448,21 @@ let currentCenter='';
 let currentMonth='';
 let dataLoaded=false;
 let hideSat=false; // 토요일 숨기기
+let ageGroup='infant'; // infant(영아반) or toddler(유아반)
 let currentProdTag='전체';
+
+// 지역별 가용 연령반 매핑
+const REGION_AGE={
+  '서울 광진구':['infant'],
+  '서울 영등포구':['infant'],
+  '서울 동대문구':['infant'],
+  '경기 수원시':['toddler'],
+  '경기 성남시':['infant'],
+  '경기 용인시':['infant'],
+  '충북 옥천군':['infant'],
+  '대전 중구':['toddler'],
+  '서울 강서구':['infant'],
+};
 
 // ── localStorage ──
 const STORE_KEY='meal-planner-settings';
@@ -444,7 +473,7 @@ function saveSettings(){
   const region=document.getElementById('regionSel').value;
   const monthEl=document.getElementById('monthSel');
   const month=monthEl?monthEl.value:'';
-  const s={regionId:region,monthKey:month,allergens:[...F],hideSat};
+  const s={regionId:region,monthKey:month,allergens:[...F],hideSat,ageGroup};
   localStorage.setItem(STORE_KEY,JSON.stringify(s));
 }
 
@@ -463,6 +492,12 @@ async function init(){
   if(saved.hideSat){
     hideSat=true;
     document.getElementById('satToggle').checked=true;
+  }
+
+  // Restore ageGroup
+  if(saved.ageGroup){
+    ageGroup=saved.ageGroup;
+    document.querySelectorAll('.age-btn').forEach(b=>b.classList.toggle('on',b.dataset.age===ageGroup));
   }
 
   // Load centers (fetch first, fallback to embedded)
@@ -526,6 +561,31 @@ function toggleAllergy(n){
   if(dataLoaded){af();rw();}
 }
 
+function setAgeGroup(ag){
+  // 비활성 버튼이면 무시
+  const btn=document.querySelector(`.age-btn[data-age="${ag}"]`);
+  if(btn&&btn.disabled)return;
+  ageGroup=ag;
+  document.querySelectorAll('.age-btn').forEach(b=>b.classList.toggle('on',b.dataset.age===ag));
+  saveSettings();
+  updateSummary();
+}
+
+function updateAgeButtons(region){
+  const avail=REGION_AGE[region]||['infant','toddler'];
+  document.querySelectorAll('.age-btn').forEach(b=>{
+    const ag=b.dataset.age;
+    const enabled=avail.includes(ag);
+    b.disabled=!enabled;
+    b.style.opacity=enabled?'1':'0.35';
+    b.style.cursor=enabled?'pointer':'default';
+  });
+  // 현재 선택이 불가능하면 가용한 첫 번째로 자동 전환
+  if(!avail.includes(ageGroup)){
+    setAgeGroup(avail[0]);
+  }
+}
+
 function onSatToggle(){
   hideSat=document.getElementById('satToggle').checked;
   saveSettings();
@@ -543,9 +603,12 @@ async function onRegionChange(){
     currentCenter='';
     currentMonth='';
     monthSection.style.display='none';
+    // 지역 미선택 시 버튼 모두 활성화
+    document.querySelectorAll('.age-btn').forEach(b=>{b.disabled=false;b.style.opacity='1';b.style.cursor='pointer';});
     return;
   }
 
+  updateAgeButtons(region);
   const center=centers.find(c=>c.region===region);
   if(!center){
     dataLoaded=false;
@@ -752,7 +815,8 @@ function updateSummary(){
   if(!currentCenter&&!F.size){el.style.display='none';return;}
   el.style.display='block';
   let html='';
-  if(center)html+=`<strong>${center.name}</strong>`;
+  const ageName=ageGroup==='infant'?'영아반':'유아반';
+  if(center)html+=`<strong>${center.name}</strong> · ${ageName}`;
   else html+='<strong>어린이집을 선택하세요</strong>';
   if(F.size){
     html+=`<br>알레르기 ${F.size}종 필터링 중`;
@@ -1106,11 +1170,12 @@ function cpDay(ds){
 function resetAll(){
   if(!confirm('지역, 알레르기 설정을 모두 지울까요?'))return;
   localStorage.removeItem(STORE_KEY);
-  currentCenter='';currentMonth='';F.clear();
+  currentCenter='';currentMonth='';F.clear();ageGroup='infant';
   document.getElementById('regionSel').value='';
   document.getElementById('monthSection').style.display='none';
   document.getElementById('monthSel').innerHTML='';
   document.querySelectorAll('.al-chip').forEach(c=>c.classList.remove('on'));
+  document.querySelectorAll('.age-btn').forEach(b=>b.classList.toggle('on',b.dataset.age==='infant'));
   document.getElementById('stSummary').style.display='none';
   dataLoaded=false;D={};
   updateSummary();updateFilterBar();updateTabBadge();
