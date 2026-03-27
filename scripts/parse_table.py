@@ -71,7 +71,7 @@ FORMAT_CONFIGS = {
     "gangseo": {
         "page": 0,
         "allergy_fn": extract_allergy_circled,
-        "day_cols": [2, 3, 4, 5, 7, 9],  # 월~토 in 11-col (col6,8,10은 빈열)
+        "day_cols": "auto_per_week",  # 주마다 일자 행에서 동적 감지 (월별 열 수 가변)
         "week_detect": "week_korean",  # col[0]에 '첫째주', '둘째주' 등
         "meal_offsets": {"오전간식": 1, "점심": 2, "오후간식": 3},
         "block_size": 5,
@@ -116,6 +116,12 @@ def detect_table_format(pdf_path: str) -> str | None:
                 biggest = max(tables, key=lambda t: len(t))
                 ncols = len(biggest[0]) if biggest else 0
 
+                # 강서구: col[0]에 한글 주차('째주') + col[1]에 '일자'/'요일' (열 수 가변: 11~17+)
+                first = str(biggest[0][0] or '').strip()
+                second = str(biggest[0][1] or '').strip() if len(biggest[0]) > 1 else ''
+                if re.search(r'째\s*주|째\n주', first) and ('일자' in second or '요일' in second):
+                    return "gangseo"
+
                 # 용인시: 요일 헤더 + '날짜' 키워드 행 (열 수 가변)
                 if ncols >= 12:
                     header_days = [str(c or '') for c in biggest[0]]
@@ -131,10 +137,6 @@ def detect_table_format(pdf_path: str) -> str | None:
                     first = str(biggest[0][0] or '').strip()
                     if re.match(r'\d+주차', first):
                         return "seongnam"
-                    # 강서구: 11열, col[1]에 "일자" 텍스트
-                    second = str(biggest[0][1] or '').strip()
-                    if '일자' in second or '요일' in second:
-                        return "gangseo"
 
             # 2페이지 확인 (동대문구 등)
             if len(pdf.pages) >= 2:
@@ -421,10 +423,13 @@ def parse_table_pdf(pdf_path: str, fmt: str | None = None) -> dict:
     # 동적 day_cols 감지 (용인시 등 가변 열 포맷)
     day_cols_raw = config["day_cols"]
     use_merged_cells = (day_cols_raw == "auto")
+    auto_per_week = (day_cols_raw == "auto_per_week")
     if use_merged_cells:
         day_cols = _detect_day_cols_from_header(table)
         if not day_cols:
             raise ValueError("요일 헤더를 감지할 수 없습니다")
+    elif auto_per_week:
+        day_cols = []  # 주마다 동적으로 결정
     else:
         day_cols = day_cols_raw
 
@@ -447,9 +452,18 @@ def parse_table_pdf(pdf_path: str, fmt: str | None = None) -> dict:
             row_idx += 1
             continue
 
+        # auto_per_week: 이 주의 일자 행에서 날짜가 있는 열을 동적 감지
+        week_day_cols = day_cols
+        if auto_per_week:
+            week_day_cols = []
+            for ci in range(len(row)):
+                dn = _extract_date_from_cell(str(row[ci] or ''))
+                if dn and 1 <= dn <= 31:
+                    week_day_cols.append(ci)
+
         # 날짜 열에서 날짜 추출
         date_cols = {}
-        for ci in day_cols:
+        for ci in week_day_cols:
             if ci >= len(row):
                 continue
             dn = _extract_date_from_cell(str(row[ci] or ''))
