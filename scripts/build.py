@@ -26,7 +26,7 @@ SCRIPTS_DIR = ROOT / 'scripts'
 sys.path.insert(0, str(SCRIPTS_DIR))
 from generate_menu import extract_menus, detect_month_year, extract_allergies, match_allergies, analyze_sauce, build_json_data
 from parse_pdf import parse_pdf_menu, build_json_from_pdf
-from parse_table import detect_table_format, parse_table_pdf, parse_recipe_xlsx, parse_recipe_pdf, _parse_vertical_pdf
+from parse_table import detect_table_format, parse_table_pdf, parse_recipe_xlsx, parse_recipe_pdf, _parse_vertical_pdf, _parse_school_pdf
 from parse_common import build_output_json
 
 # 지역명 → ID 매핑
@@ -40,6 +40,7 @@ REGION_MAP = {
     "경기도성남시": "seongnam",
     "성남시": "seongnam",
     "동대문구": "dongdaemun",
+    "강동구": "gangdong",
     "충북옥천군": "okcheon",
     "대전중구": "daejeon-junggu",
     "서울시강서구": "gangseo",
@@ -58,6 +59,7 @@ REGION_DISPLAY = {
     "경기도성남시": "경기 성남시",
     "성남시": "경기 성남시",
     "동대문구": "서울 동대문구",
+    "강동구": "서울 강동구",
     "충북옥천군": "충북 옥천군",
     "대전중구": "대전 중구",
     "서울시강서구": "서울 강서구",
@@ -110,6 +112,11 @@ def _process_table_format(fmt: str, pdf_file: Path, recipe_file: Path | None = N
     if fmt == "dongdaemun_vertical":
         pdf_data, recipes = _parse_vertical_pdf(str(pdf_file))
         return build_output_json(pdf_data['year'], pdf_data['month'], pdf_data['menus'], recipes)
+
+    # 학교 급식: 레시피 없는 단일 PDF
+    if fmt == "school":
+        pdf_data = _parse_school_pdf(str(pdf_file))
+        return build_output_json(pdf_data['year'], pdf_data['month'], pdf_data['menus'])
 
     pdf_data = parse_table_pdf(str(pdf_file), fmt)
     recipes = {}

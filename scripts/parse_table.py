@@ -133,6 +133,12 @@ def detect_table_format(pdf_path: str) -> str | None:
                         if ncols >= 15:
                             return "yeongdeungpo"
 
+                # 학교 급식: 30열 이상, 헤더에 '월요일'+'금요일'
+                if ncols >= 30:
+                    header_texts = [str(c or '') for c in biggest[0]]
+                    if any('월요일' in h for h in header_texts) and any('금요일' in h for h in header_texts):
+                        return "school"
+
                 # 동대문구 세로형: 6열, 헤더에 '날짜'+'끼니'+'음식명'
                 if ncols == 6:
                     headers = [str(c or '').strip() for c in biggest[1] if c] if len(biggest) > 1 else []
@@ -613,6 +619,224 @@ def _parse_vertical_pdf(pdf_path: str) -> tuple[dict, dict]:
     print(f"  [dongdaemun_vertical] {year}년 {month}월, {len(menus)}일 추출, "
           f"총 {sum(len(v) for v in menus.values())}개 아이템, 레시피 {len(recipes)}개")
     return {"year": year, "month": month, "menus": menus}, recipes
+
+
+def _extract_allergy_dot(text: str) -> tuple[str, list[int]]:
+    """
+    점 구분 알레르기 추출 (학교 급식 형식).
+    "혼합잡곡밥5" → ("혼합잡곡밥", [5])
+    "감자수제비국5.6.9.18" → ("감자수제비국", [5,6,9,18])
+    "깍두기9" → ("깍두기", [9])
+    "우유2" → ("우유", [2])
+    """
+    if not text or not text.strip():
+        return ('', [])
+    text = text.strip()
+
+    # 끝에 붙은 점 구분 숫자열: "메뉴명1.2.5.6" 또는 "메뉴명5"
+    m = re.search(r'(\d{1,2}(?:\.\d{1,2})*)\s*$', text)
+    if m:
+        num_str = m.group(1)
+        nums = []
+        for n in num_str.split('.'):
+            n = n.strip()
+            if n:
+                v = int(n)
+                if 1 <= v <= 19:
+                    nums.append(v)
+        name = text[:m.start()].strip().rstrip(',').strip()
+        return name, sorted(set(nums))
+
+    return text, []
+
+
+def _parse_school_pdf(pdf_path: str) -> dict:
+    """
+    학교 급식 식단표 PDF 파싱.
+
+    구조: 1페이지, 48열 테이블, 월~금 5개 요일 블록.
+    각 요일 블록 안에 날짜행 → 메뉴행들 → 영양량행 반복.
+    알레르기: 점 구분 (1.2.5.6.8)
+
+    Returns:
+        {"year": int, "month": int, "menus": {date_str: [items]}}
+    """
+    with pdfplumber.open(pdf_path) as pdf:
+        # 연/월 감지
+        text = (pdf.pages[0].extract_text() or '')[:500]
+        m = re.search(r'(\d{4})년\s*(\d{1,2})월', text)
+        if m:
+            year, month = int(m.group(1)), int(m.group(2))
+        else:
+            raise ValueError("연도/월을 감지할 수 없습니다")
+
+        tables = pdf.pages[0].extract_tables()
+
+    if not tables:
+        raise ValueError("테이블을 찾을 수 없습니다")
+
+    table = max(tables, key=lambda t: len(t))
+    ncols = len(table[0]) if table else 0
+
+    # 요일 열 시작 위치 감지 (행0: "월요일", "화요일", ...)
+    day_starts = []
+    for ci, cell in enumerate(table[0]):
+        val = str(cell or '').strip()
+        if re.search(r'[월화수목금]요일', val):
+            day_starts.append(ci)
+
+    if len(day_starts) < 5:
+        raise ValueError(f"요일 헤더 감지 실패: {len(day_starts)}개")
+
+    # 각 요일의 열 범위: [start, next_start)
+    day_ranges = []
+    for i, start in enumerate(day_starts):
+        end = day_starts[i + 1] if i + 1 < len(day_starts) else ncols
+        day_ranges.append((start, end))
+
+    print(f"  [school] 감지: {year}년 {month}월, {len(table)}행 x {ncols}열, "
+          f"요일 열: {day_starts}")
+
+    def _merge_day_cells(row: list, start: int, end: int) -> str:
+        """한 요일 범위의 셀들을 하나의 텍스트로 합침 (start+1부터, 병합셀 중복 회피)"""
+        parts = []
+        for ci in range(start + 1, min(end, len(row))):
+            val = str(row[ci] or '').strip()
+            if val:
+                parts.append(val)
+        return ''.join(parts)
+
+    def _parse_date_from_cells(row: list, start: int, end: int) -> int | None:
+        """날짜행에서 날짜 숫자 추출.
+        순수 1~2자리 숫자 셀만 인정 (알레르기 숫자 "5.6.12" 와 구별).
+        "9[기후급식]" 같은 태그 붙은 것도 허용."""
+        digits = ''
+        for ci in range(start + 1, min(end, len(row))):
+            val = str(row[ci] or '').strip()
+            if not val:
+                continue
+            # 점(.)이 포함되면 알레르기 숫자 → 스킵
+            if '.' in val:
+                return None
+            # 대괄호 태그 제거 후 한글 메뉴명 체크
+            val_no_tag = re.sub(r'\[.*?\]', '', val)
+            if re.search(r'[가-힣]{2,}', val_no_tag):
+                return None
+            # 순수 숫자(1~2자리) 또는 숫자+태그("9[기후급식]")
+            dm = re.match(r'^(\d{1,2})(?:\[|$|\s)', val)
+            if dm:
+                digits += dm.group(1)
+            # 2자리 넘으면 중단
+            if len(digits) > 2:
+                return None
+        if digits:
+            try:
+                v = int(digits)
+                if 1 <= v <= 31:
+                    return v
+            except ValueError:
+                pass
+        return None
+
+    def _is_nutrition_line(text: str) -> bool:
+        """영양량 행인지 판별 (kcal 패턴)"""
+        return bool(re.match(r'^\d+\.\d+/\d+', text))
+
+    # 주 블록 파싱
+    menus = {}
+    ri = 1  # 행0은 요일 헤더
+
+    while ri < len(table):
+        row = table[ri]
+
+        # 날짜행 탐색: 최소 3개 요일에서 날짜가 감지되어야 함 (알레르기 숫자 오감지 방지)
+        # 예외: 첫째주/마지막주는 3개 미만일 수 있으므로,
+        # 이전에 감지된 날짜와 연속성이 있는지도 확인
+        dates_found = {}
+        for di, (start, end) in enumerate(day_ranges):
+            dn = _parse_date_from_cells(row, start, end)
+            if dn:
+                dates_found[di] = dn
+
+        if len(dates_found) < 3:
+            # 2개여도 날짜가 연속이면 허용 (첫주/마지막주)
+            vals = sorted(dates_found.values())
+            if len(vals) < 2 or vals[-1] - vals[0] > 6:
+                ri += 1
+                continue
+
+        # 이 주의 메뉴행 수집 (날짜행 다음 ~ 다음 날짜행 또는 푸터)
+        menu_rows_start = ri + 1
+        menu_rows_end = menu_rows_start
+        while menu_rows_end < len(table):
+            next_row = table[menu_rows_end]
+            # 다음 날짜행이면 중단
+            next_dates = 0
+            for di, (start, end) in enumerate(day_ranges):
+                if _parse_date_from_cells(next_row, start, end):
+                    next_dates += 1
+            if next_dates >= 2:
+                break
+            # 푸터 감지 (♣ 등)
+            first_cell = str(next_row[0] or '').strip()
+            if first_cell.startswith('♣') or first_cell.startswith('※'):
+                break
+            menu_rows_end += 1
+
+        # 각 요일별 메뉴 텍스트 수집
+        for di, (start, end) in enumerate(day_ranges):
+            dn = dates_found.get(di)
+            if not dn:
+                continue
+
+            try:
+                ds = date(year, month, dn).isoformat()
+            except ValueError:
+                continue
+
+            # 메뉴행 텍스트 합치기 (셀 내 줄바꿈도 분리)
+            lines = []
+            for mri in range(menu_rows_start, menu_rows_end):
+                text = _merge_day_cells(table[mri], start, end)
+                if not text:
+                    continue
+                for subline in text.split('\n'):
+                    subline = subline.strip()
+                    if subline and not _is_nutrition_line(subline):
+                        lines.append(subline)
+
+            # 메뉴 아이템 파싱
+            day_items = []
+            for line in lines:
+                # 콤마로 여러 아이템 분리: "총각김치9,오렌지"
+                sub_items = re.split(r',(?=[가-힣a-zA-Z])', line)
+                for sub in sub_items:
+                    sub = sub.strip()
+                    if not sub:
+                        continue
+                    # 순수 숫자만 있는 건 스킵 (이전 행 알레르기 연속)
+                    if re.match(r'^[\d.\s]+$', sub):
+                        if day_items:
+                            for n in sub.replace('.', ' ').split():
+                                if n.isdigit():
+                                    v = int(n)
+                                    if 1 <= v <= 19 and v not in day_items[-1]['allergy']:
+                                        day_items[-1]['allergy'].append(v)
+                            day_items[-1]['allergy'] = sorted(set(day_items[-1]['allergy']))
+                        continue
+                    name, allergy = _extract_allergy_dot(sub)
+                    name = clean_menu_name(name)
+                    if not name:
+                        continue
+                    day_items.append({"name": name, "allergy": allergy, "sec": "점심"})
+
+            if day_items:
+                menus[ds] = day_items
+
+        ri = menu_rows_end
+
+    print(f"  [school] {len(menus)}일 추출, 총 {sum(len(v) for v in menus.values())}개 아이템")
+    return {"year": year, "month": month, "menus": menus}
 
 
 def parse_recipe_xlsx(xlsx_path: str) -> dict:
