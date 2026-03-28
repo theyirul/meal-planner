@@ -634,7 +634,8 @@ def _extract_allergy_dot(text: str) -> tuple[str, list[int]]:
     text = text.strip()
 
     # 끝에 붙은 점 구분 숫자열: "메뉴명1.2.5.6" 또는 "메뉴명5"
-    m = re.search(r'(\d{1,2}(?:\.\d{1,2})*)\s*$', text)
+    # trailing dot 허용: "들깨무채국5.6." (셀 분할로 잘린 경우)
+    m = re.search(r'(\d{1,2}(?:\.\d{1,2})*)\.?\s*$', text)
     if m:
         num_str = m.group(1)
         nums = []
@@ -698,9 +699,26 @@ def _parse_school_pdf(pdf_path: str) -> dict:
           f"요일 열: {day_starts}")
 
     def _merge_day_cells(row: list, start: int, end: int) -> str:
-        """한 요일 범위의 셀들을 하나의 텍스트로 합침 (start+1부터, 병합셀 중복 회피)"""
+        """한 요일 범위의 셀들을 하나의 텍스트로 합침.
+        start 열은 요일 헤더가 아닌 경우에만 포함.
+        start 열이 병합셀(다음 열 내용 포함)이면 start 열만 사용."""
+        start_val = str(row[start] or '').strip() if start < len(row) else ''
+        # start 열이 요일 헤더("월요일" 등)면 스킵
+        if re.search(r'[월화수목금]요일', start_val):
+            parts = []
+            for ci in range(start + 1, min(end, len(row))):
+                val = str(row[ci] or '').strip()
+                if val:
+                    parts.append(val)
+            return ''.join(parts)
+        # start 열에 값이 있고, 다음 열 값이 start 열에 포함되면 병합셀 → start만 사용
+        if start_val and (start + 1) < min(end, len(row)):
+            next_val = str(row[start + 1] or '').strip()
+            if next_val and next_val in start_val:
+                return start_val
+        # 일반: start부터 모두 합침
         parts = []
-        for ci in range(start + 1, min(end, len(row))):
+        for ci in range(start, min(end, len(row))):
             val = str(row[ci] or '').strip()
             if val:
                 parts.append(val)
@@ -765,6 +783,19 @@ def _parse_school_pdf(pdf_path: str) -> dict:
                 ri += 1
                 continue
 
+        # 푸터 영역 오감지 방지: 감지된 날짜가 이전 주보다 앞이면 스킵
+        # (예: 마지막 주 날짜 27~30 뒤에 푸터 숫자 4,8,5,3 감지)
+        vals = sorted(dates_found.values())
+        if menus:
+            last_date = max(int(d.split('-')[2]) for d in menus.keys())
+            if vals[0] < last_date - 6:  # 이전 주보다 한참 앞이면 오감지
+                ri += 1
+                continue
+        # 같은 주 내 날짜가 연속인지 확인 (간격 6 이하)
+        if vals[-1] - vals[0] > 6:
+            ri += 1
+            continue
+
         # 이 주의 메뉴행 수집 (날짜행 다음 ~ 다음 날짜행 또는 푸터)
         menu_rows_start = ri + 1
         menu_rows_end = menu_rows_start
@@ -796,28 +827,80 @@ def _parse_school_pdf(pdf_path: str) -> dict:
 
             # 메뉴행 텍스트 합치기 (셀 내 줄바꿈도 분리)
             lines = []
-            for mri in range(menu_rows_start, menu_rows_end):
-                text = _merge_day_cells(table[mri], start, end)
-                if not text:
-                    continue
-                for subline in text.split('\n'):
-                    subline = subline.strip()
-                    if subline and not _is_nutrition_line(subline):
-                        lines.append(subline)
+            # 첫 메뉴행의 start 열에 전체 메뉴가 뭉쳐있는지 확인 (merged blob)
+            # complete blob = 영양량 행까지 포함된 경우 (개별 행은 중복이므로 무시)
+            used_blob = False
+            if menu_rows_start < len(table):
+                first_start_val = str(table[menu_rows_start][start] or '').strip()
+                if (first_start_val
+                        and '\n' in first_start_val
+                        and not re.search(r'[월화수목금]요일', first_start_val)):
+                    # 영양량 행(kcal 패턴)이 포함되어 있으면 complete blob
+                    blob_lines = first_start_val.split('\n')
+                    has_nutrition = any(_is_nutrition_line(bl.strip()) for bl in blob_lines)
+                    if has_nutrition:
+                        for subline in blob_lines:
+                            subline = subline.strip()
+                            if subline and not _is_nutrition_line(subline):
+                                lines.append(subline)
+                        used_blob = True
+            if not used_blob:
+                for mri in range(menu_rows_start, menu_rows_end):
+                    text = _merge_day_cells(table[mri], start, end)
+                    if not text:
+                        continue
+                    for subline in text.split('\n'):
+                        subline = subline.strip()
+                        if subline and not _is_nutrition_line(subline):
+                            lines.append(subline)
+
+            # 라인 전처리: 행 넘어서 잘린 조각 병합
+            # "머스터" + "드소스1.2.5.6" → "머스터드소스1.2.5.6"
+            # 매우 보수적: 이전 라인이 콤마 없는 짧은 한글 조각이고,
+            #              현재 라인도 짧은 한글 조각으로 시작할 때만
+            merged_lines = []
+            for line in lines:
+                if merged_lines:
+                    prev = merged_lines[-1]
+                    # 이전 라인이 순수 숫자(알레르기)면 절대 합치지 않음
+                    if not re.match(r'^[\d.,\s/]+$', prev):
+                        # 이전 라인 끝이 한글 2-3자 조각이고 알레르기 숫자 없음
+                        prev_tail = prev.split(',')[-1].strip()
+                        _KNOWN_SHORT = {'우유', '사과', '수박', '참외', '포도', '감귤',
+                                         '오렌', '김치', '석박', '청포', '김구'}
+                        prev_is_fragment = (
+                            re.match(r'^[가-힣]{2}$', prev_tail)  # 순수 한글 2자 (조각)
+                            and prev_tail not in _KNOWN_SHORT  # 알려진 짧은 음식명 제외
+                            and ',' not in prev  # 콤마 구분된 복합 라인이 아님
+                        )
+                        # 현재 라인도 한글 조각으로 시작 (완전한 메뉴+알레르기가 아님)
+                        cur_first = line.split(',')[0].strip()
+                        cur_name = re.sub(r'[\d.]+$', '', cur_first)
+                        cur_is_fragment = (
+                            re.match(r'^[가-힣a-zA-Z]', line)
+                            and len(cur_name) <= 3
+                        )
+                        if prev_is_fragment and cur_is_fragment:
+                            merged_lines[-1] += line
+                            continue
+                merged_lines.append(line)
+            lines = merged_lines
 
             # 메뉴 아이템 파싱
             day_items = []
             for line in lines:
-                # 콤마로 여러 아이템 분리: "총각김치9,오렌지"
-                sub_items = re.split(r',(?=[가-힣a-zA-Z])', line)
+                # 콤마로 여러 아이템 분리: "총각김치9,오렌지", "보쌈김치9,19C쥬스13"
+                # 한글/영문 시작 또는 숫자+영문 시작(19C쥬스 등) 아이템 분리
+                sub_items = re.split(r',(?=[가-힣a-zA-Z]|\d+[a-zA-Z가-힣])', line)
                 for sub in sub_items:
                     sub = sub.strip()
                     if not sub:
                         continue
                     # 순수 숫자만 있는 건 스킵 (이전 행 알레르기 연속)
-                    if re.match(r'^[\d.\s]+$', sub):
+                    # 쉼표도 허용: "1.2.5.6.9.10.12.13.15.16,18"
+                    if re.match(r'^[\d.,\s]+$', sub):
                         if day_items:
-                            for n in sub.replace('.', ' ').split():
+                            for n in re.split(r'[.,\s]+', sub):
                                 if n.isdigit():
                                     v = int(n)
                                     if 1 <= v <= 19 and v not in day_items[-1]['allergy']:
@@ -830,8 +913,31 @@ def _parse_school_pdf(pdf_path: str) -> dict:
                         continue
                     day_items.append({"name": name, "allergy": allergy, "sec": "점심"})
 
+            # 1글자 조각 제거 (pdfplumber 셀 분할 아티팩트)
+            # 실제 1글자 음식명은 거의 없으므로 안전하게 필터
+            day_items = [it for it in day_items if len(it['name']) > 1]
+
+            # 이름에 남은 알레르기 숫자 재분리: "어묵야채볶음1.5.6.13"
+            for it in day_items:
+                if re.search(r'[가-힣][0-9]', it['name']):
+                    new_name, new_allergy = _extract_allergy_dot(it['name'])
+                    if new_allergy:
+                        it['name'] = new_name
+                        it['allergy'] = sorted(set(it['allergy'] + new_allergy))
+
+            # 중복 제거 (병합셀 아티팩트: 같은 메뉴가 blob + 개별 셀에서 2번 잡힘)
             if day_items:
-                menus[ds] = day_items
+                seen = {}
+                deduped = []
+                for it in day_items:
+                    if it['name'] not in seen:
+                        seen[it['name']] = it
+                        deduped.append(it)
+                    else:
+                        prev = seen[it['name']]
+                        if len(it['allergy']) > len(prev['allergy']):
+                            prev['allergy'] = it['allergy']
+                menus[ds] = deduped
 
         ri = menu_rows_end
 

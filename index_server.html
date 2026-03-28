@@ -462,6 +462,7 @@ const REGION_AGE={
   '충북 옥천군':['infant'],
   '대전 중구':['toddler'],
   '서울 강서구':['infant'],
+  '서울 강동구 강솔초등학교':['elementary'],
 };
 
 // ── localStorage ──
@@ -573,6 +574,14 @@ function setAgeGroup(ag){
 
 function updateAgeButtons(region){
   const avail=REGION_AGE[region]||['infant','toddler'];
+  const sec=document.getElementById('ageSection');
+  // 초등학교 등 반 선택 불필요한 지역은 섹션 자체 숨김
+  if(avail.length===1&&avail[0]==='elementary'){
+    if(sec)sec.style.display='none';
+    ageGroup='elementary';
+    return;
+  }
+  if(sec)sec.style.display='';
   document.querySelectorAll('.age-btn').forEach(b=>{
     const ag=b.dataset.age;
     const enabled=avail.includes(ag);

@@ -94,6 +94,10 @@ def clean_menu_name(name: str) -> str:
             name = inner.strip()
     # '+' 접두어 제거 (용인시 음료 동반 표기: "+둥굴레차" → "둥굴레차")
     name = re.sub(r'^\+\s*', '', name)
+    # 열린 괄호가 닫히지 않은 경우 제거: "떡만두국(비" → "떡만두국"
+    # (pdfplumber 셀 분할로 잘린 태그)
+    if name.count('(') > name.count(')'):
+        name = re.sub(r'\([^)]*$', '', name).strip()
     return name
 
 

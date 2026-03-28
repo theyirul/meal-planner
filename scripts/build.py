@@ -59,7 +59,7 @@ REGION_DISPLAY = {
     "경기도성남시": "경기 성남시",
     "성남시": "경기 성남시",
     "동대문구": "서울 동대문구",
-    "강동구": "서울 강동구",
+    "강동구": "서울 강동구 강솔초등학교",
     "충북옥천군": "충북 옥천군",
     "대전중구": "대전 중구",
     "서울시강서구": "서울 강서구",
@@ -71,14 +71,14 @@ def parse_upload_filename(filename: str) -> dict | None:
     filename = unicodedata.normalize('NFC', filename)
     name = Path(filename).stem
     ext = Path(filename).suffix.lstrip('.')
-    # 수동 JSON: {YYYYMM}_{지역}_{연령}_{유형}_수동.json
-    manual_pat = r'^(\d{6})_([가-힣]+)_(.+?)_(.+?)_수동$'
-    mm = re.match(manual_pat, name)
+    # 수동/패치 JSON: {YYYYMM}_{지역}_{연령}_{유형}_{수동|패치}.json
+    special_pat = r'^(\d{6})_([가-힣]+)_(.+?)_(.+?)_(수동|패치)$'
+    mm = re.match(special_pat, name)
     if mm and ext == 'json':
         return {
             "yyyymm": mm.group(1), "region": mm.group(2),
             "age": mm.group(3), "type": mm.group(4),
-            "subtype": "수동", "ext": ext, "filename": filename,
+            "subtype": mm.group(5), "ext": ext, "filename": filename,
         }
     pattern = r'^(\d{6})_([가-힣]+)_(.+?)_(.+?)_(식단표|레시피)$'
     m = re.match(pattern, name)
@@ -156,6 +156,48 @@ def _process_standard(pdf_file: Path, xlsx_file: Path | None = None) -> dict | N
         return None
 
 
+def _apply_patch(data: dict, patch_path: Path) -> dict:
+    """패치 JSON을 파싱 결과에 적용. replace/add/remove 지원."""
+    with open(patch_path, encoding='utf-8') as f:
+        patch = json.load(f)
+
+    menus = data.get('menus', {})
+    applied = 0
+    for date_str, ops in patch.items():
+        if date_str.startswith('_'):  # _설명, _사용법 등 메타 필드 스킵
+            continue
+        if date_str not in menus:
+            print(f"    [패치] {date_str} — 해당 날짜 없음, 스킵")
+            continue
+        items = menus[date_str]
+
+        # replace: {"현재이름": "새이름"} — 이름만 교체
+        for old_name, new_name in ops.get('replace', {}).items():
+            for it in items:
+                if it['name'] == old_name:
+                    it['name'] = new_name
+                    applied += 1
+                    break
+
+        # remove: ["이름1", "이름2"] — 해당 아이템 제거
+        for rm_name in ops.get('remove', []):
+            before = len(items)
+            items = [it for it in items if it['name'] != rm_name]
+            if len(items) < before:
+                applied += 1
+            menus[date_str] = items
+
+        # add: [{"name": "...", "allergy": [...], "sec": "..."}] — 아이템 추가
+        for new_item in ops.get('add', []):
+            items.append(new_item)
+            applied += 1
+            menus[date_str] = items
+
+    print(f"    [패치] {applied}건 적용 완료")
+    data['menus'] = menus
+    return data
+
+
 def process_upload_group(group_key: str, files: list[dict]) -> tuple[dict | None, dict | None]:
     """uploads 그룹 처리. (메타정보, 파싱데이터) 반환"""
     meta = files[0]
@@ -208,6 +250,14 @@ def process_upload_group(group_key: str, files: list[dict]) -> tuple[dict | None
 
     if data is None:
         return None, None
+
+    # 패치 JSON 적용 (있으면)
+    for f in files:
+        if f['subtype'] == '패치' and f['ext'] == 'json':
+            patch_path = UPLOAD_DIR / f['filename']
+            if patch_path.exists():
+                print(f"  [패치 적용] {f['filename']}")
+                data = _apply_patch(data, patch_path)
 
     year, month = data['year'], data['month']
     month_key = f"{year}-{month:02d}"
