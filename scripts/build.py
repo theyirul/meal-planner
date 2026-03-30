@@ -44,6 +44,7 @@ REGION_MAP = {
     "충북옥천군": "okcheon",
     "대전중구": "daejeon-junggu",
     "서울시강서구": "gangseo",
+    "의왕시": "uiwang",
 }
 
 REGION_NAMES = {v: k for k, v in REGION_MAP.items()}
@@ -63,6 +64,7 @@ REGION_DISPLAY = {
     "충북옥천군": "충북 옥천군",
     "대전중구": "대전 중구",
     "서울시강서구": "서울 강서구",
+    "의왕시": "경기 의왕시",
 }
 
 
