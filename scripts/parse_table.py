@@ -77,6 +77,14 @@ FORMAT_CONFIGS = {
         "meal_offsets": {"오전간식": 1, "점심": 2, "오후간식": 3},
         "block_size": 5,
     },
+    "daejeon": {
+        "page": 0,
+        "allergy_fn": extract_allergy_circled,
+        "day_cols": [2, 4, 6, 8, 10],  # 짝수열에 데이터 (12열 중)
+        "week_detect": "week_number",  # col[0]에 "N주"
+        "meal_offsets": {"오전간식": 1, "점심": 2, "오후간식": 3},
+        "block_size": 5,
+    },
 }
 
 
@@ -144,6 +152,14 @@ def detect_table_format(pdf_path: str) -> str | None:
                     headers = [str(c or '').strip() for c in biggest[1] if c] if len(biggest) > 1 else []
                     if '날짜' in headers and '끼니' in headers and '음식명' in headers:
                         return "dongdaemun_vertical"
+
+                # 대전 중구: 12열, col[0]='구분', 짝수열에 요일
+                if ncols == 12:
+                    first_cell = str(biggest[0][0] or '').strip()
+                    if first_cell == '구분':
+                        even_headers = [str(biggest[0][ci] or '').strip() for ci in range(2, 12, 2)]
+                        if '월' in even_headers and '금' in even_headers:
+                            return "daejeon"
 
                 # 성남시: 11열, "N주차"
                 if ncols == 11:
@@ -243,6 +259,10 @@ def _is_date_row(row: list, fmt: str, config: dict) -> bool:
         if '일자' in second or '요일' in second:
             return True
         return False
+
+    elif method == "week_number":
+        # 대전 중구: col[0]에 "N주" 패턴
+        return bool(re.match(r'\d+주', first))
 
     elif method == "date_keyword":
         # 용인시: col[0]에 '날짜' 텍스트

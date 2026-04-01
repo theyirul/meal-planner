@@ -27,7 +27,7 @@ CIRCLED_NUMS = {
 CIRCLED_PATTERN = re.compile('[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲]+')
 
 # 장식 문자 제거
-DECO_CHARS = re.compile(r'[♬★◉♥♣✔\U000f0074]')
+DECO_CHARS = re.compile(r'[♬★◉♥♣✔☻\U000f0074]')
 
 
 def extract_allergy_circled(text: str) -> tuple[str, list[int]]:
