@@ -640,12 +640,12 @@ async function onRegionChange(){
     monthSel.appendChild(o);
   });
 
-  // 기본값: 이번 달, 없으면 최신 월
+  // 기본값: 이번 달 우선, 없으면 저장된 달, 없으면 최신 월
   const saved=loadSettings();
-  if(saved.monthKey&&center.months.includes(saved.monthKey)){
-    monthSel.value=saved.monthKey;
-  }else if(center.months.includes(curKey)){
+  if(center.months.includes(curKey)){
     monthSel.value=curKey;
+  }else if(saved.monthKey&&center.months.includes(saved.monthKey)){
+    monthSel.value=saved.monthKey;
   }else{
     monthSel.value=center.months[center.months.length-1];
   }
