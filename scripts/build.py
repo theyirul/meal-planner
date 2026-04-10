@@ -46,6 +46,7 @@ REGION_MAP = {
     "대전중구": "daejeon-junggu",
     "서울시강서구": "gangseo",
     "의왕시": "uiwang",
+    "창원시": "changwon",
 }
 
 REGION_NAMES = {v: k for k, v in REGION_MAP.items()}
@@ -67,6 +68,7 @@ REGION_DISPLAY = {
     "대전중구": "대전 중구",
     "서울시강서구": "서울 강서구",
     "의왕시": "경기 의왕시",
+    "창원시": "경남 창원시",
 }
 
 

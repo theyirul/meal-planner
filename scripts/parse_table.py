@@ -85,6 +85,15 @@ FORMAT_CONFIGS = {
         "meal_offsets": {"오전간식": 1, "점심": 2, "오후간식": 3},
         "block_size": 5,
     },
+    "changwon": {
+        "page": 0,
+        "allergy_fn": extract_allergy_circled,
+        "day_cols": "auto_per_week",  # 날짜행에서 숫자로 시작하는 열 자동 감지 ("1 [수]" 등)
+        "week_detect": "date_keyword",  # col[0]에 '날짜' 텍스트
+        "meal_offsets": {"오전간식": 1, "점심": 2, "오후간식": 3},
+        "block_size": 5,
+        "overflow_check": True,  # 점심이 넘칠 때 오후간식 offset을 +1 조정
+    },
 }
 
 
@@ -130,6 +139,16 @@ def detect_table_format(pdf_path: str) -> str | None:
                 second = str(biggest[0][1] or '').strip() if len(biggest[0]) > 1 else ''
                 if re.search(r'째\s*주|째\n주', first) and ('일자' in second or '요일' in second):
                     return "gangseo"
+
+                # 창원시: 19열, col[0]='날짜', 날짜 셀이 "N [요일]" 형식
+                if ncols == 19:
+                    if _has_date_keyword_rows(biggest):
+                        # "1 [수]" 형태 확인 (대괄호 요일)
+                        for r in biggest[:8]:
+                            for cell in r[1:]:
+                                cv = str(cell or '').strip()
+                                if re.match(r'\d{1,2}\s*\[', cv):
+                                    return "changwon"
 
                 # 용인시: 요일 헤더 + '날짜' 키워드 행 (열 수 가변)
                 if ncols >= 12:
@@ -507,6 +526,20 @@ def parse_table_pdf(pdf_path: str, fmt: str | None = None) -> dict:
             row_idx += 1
             continue
 
+        # overflow 체크: 점심 다음 행(+3)에 col[0]이 비어있고 데이터가 있으면
+        # 점심이 넘친 것 → 오후간식은 +4 위치 (창원시 등)
+        overflow_check = config.get("overflow_check", False)
+        overflow_offset = 0
+        if overflow_check:
+            overflow_ri = row_idx + 3
+            if overflow_ri < len(table):
+                ov_row = table[overflow_ri]
+                ov_first = str(ov_row[0] or '' if ov_row else '').strip()
+                # col[0]이 빈 문자열이고(라벨 없음), 어느 열에든 데이터가 있으면 overflow
+                ov_has_data = any(str(ov_row[c] or '').strip() for c in range(1, len(ov_row)))
+                if ov_first == '' and ov_has_data:
+                    overflow_offset = 1
+
         # 각 날짜에서 끼니별 메뉴 추출
         sorted_day_cols = sorted(date_cols.keys())
         for i, ci in enumerate(sorted_day_cols):
@@ -521,7 +554,9 @@ def parse_table_pdf(pdf_path: str, fmt: str | None = None) -> dict:
 
             day_items = []
             for sec_name, offset in config["meal_offsets"].items():
-                ri = row_idx + offset
+                # 오후간식은 overflow 발생 시 offset을 추가로 밀어줌
+                actual_offset = offset + (overflow_offset if sec_name == "오후간식" else 0)
+                ri = row_idx + actual_offset
                 if ri >= len(table):
                     break
                 sec_row = table[ri]
@@ -532,6 +567,13 @@ def parse_table_pdf(pdf_path: str, fmt: str | None = None) -> dict:
                     cell_text = _get_merged_cell(sec_row, ci, next_ci)
                 else:
                     cell_text = str(sec_row[ci] or '')
+                    # overflow 있을 때 점심은 다음 행 데이터도 합산
+                    if sec_name == "점심" and overflow_offset:
+                        ov_ri = row_idx + offset + 1
+                        if ov_ri < len(table) and ci < len(table[ov_ri]):
+                            extra = str(table[ov_ri][ci] or '').strip()
+                            if extra:
+                                cell_text = cell_text + '\n' + extra
                 for item in _parse_menu_cell(cell_text, allergy_fn, merge_prefix):
                     item['sec'] = sec_name
                     day_items.append(item)
