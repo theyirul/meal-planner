@@ -97,6 +97,13 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
 .sr-cnt{text-align:center;font-size:.82rem;color:var(--text2);margin:-12px 0 18px}
 
 /* ── MONTHLY CALENDAR ── */
+.cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding:0 2px}
+.cal-nav-btn{background:none;border:none;cursor:pointer;padding:6px 10px;border-radius:8px;font-size:1.1rem;color:var(--text2);transition:background .15s}
+.cal-nav-btn:hover{background:var(--accent-light)}
+.cal-nav-btn:disabled{opacity:.25;cursor:default}
+.cal-nav-btn:disabled:hover{background:none}
+.cal-nav-title{font-size:1rem;font-weight:700;color:var(--text)}
+.cal-past{opacity:.55}
 .cal{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin-bottom:28px}
 .ch{text-align:center;font-weight:600;font-size:.78rem;padding:10px 2px 6px;color:var(--text3)}
 .ch.sa{color:#3B82F6}
@@ -757,8 +764,23 @@ function buildCalendar(year,month){
   let emptyCells=firstDay.getDay()===0?0:((firstDay.getDay()+6)%7);
   const lastDate=new Date(year,month,0).getDate();
 
-  const cols=hideSat?5:6;
-  let h=`<div class="cal"${hideSat?' style="grid-template-columns:repeat(5,1fr)"':''}>`;
+  // 월 네비게이션 헤더
+  const monthKey=`${year}-${String(month).padStart(2,'0')}`;
+  const center=centers.find(c=>c.id===currentCenter);
+  const avail=center?center.months:[];
+  const idx=avail.indexOf(monthKey);
+  const hasPrev=idx>0;
+  const hasNext=idx>=0&&idx<avail.length-1;
+  const now=new Date();
+  const curKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const isPastMonth=monthKey<curKey;
+  const monthNames=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+  let h=`<div class="cal-nav">
+    <button class="cal-nav-btn" onclick="navMonth(-1)" ${hasPrev?'':'disabled'}>&#8249;</button>
+    <span class="cal-nav-title">${year}년 ${monthNames[month-1]}</span>
+    <button class="cal-nav-btn" onclick="navMonth(1)" ${hasNext?'':'disabled'}>&#8250;</button>
+  </div>`;
+  h+=`<div class="cal${isPastMonth?' cal-past':''}"${hideSat?' style="grid-template-columns:repeat(5,1fr)"':''}>`;
   h+='<div class="ch">월</div><div class="ch">화</div><div class="ch">수</div>';
   h+='<div class="ch">목</div><div class="ch">금</div>';
   if(!hideSat)h+='<div class="ch sa">토</div>';
@@ -812,6 +834,23 @@ function buildCalendar(year,month){
 
 function buildCalendarFromCurrent(){
   if(!currentMonth)return;
+  const [y,m]=currentMonth.split('-').map(Number);
+  buildCalendar(y,m);
+  af();
+}
+
+function navMonth(dir){
+  const center=centers.find(c=>c.id===currentCenter);
+  if(!center)return;
+  const avail=center.months;
+  const idx=avail.indexOf(currentMonth);
+  const next=avail[idx+dir];
+  if(!next)return;
+  currentMonth=next;
+  // 설정 드롭다운도 동기화
+  const sel=document.getElementById('monthSel');
+  if(sel)sel.value=currentMonth;
+  saveSettings();
   const [y,m]=currentMonth.split('-').map(Number);
   buildCalendar(y,m);
   af();
