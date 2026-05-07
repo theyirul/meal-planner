@@ -61,6 +61,14 @@ FORMAT_CONFIGS = {
         "meal_offsets": {"오전간식": 1, "점심": 2, "오후간식": 3},
         "block_size": 5,
     },
+    "jungnang": {
+        "page": 1,
+        "allergy_fn": extract_allergy_circled,
+        "day_cols": "auto_per_week",  # 19열, 날짜열 동적 감지
+        "week_detect": "date_label",  # "일 자" 텍스트
+        "meal_offsets": {"오전간식": 1, "점심": 2, "오후간식": 3},
+        "block_size": 5,
+    },
     "yongin": {
         "page": 0,
         "allergy_fn": extract_allergy_circled,
@@ -186,7 +194,7 @@ def detect_table_format(pdf_path: str) -> str | None:
                     if re.match(r'\d+주차', first):
                         return "seongnam"
 
-            # 2페이지 확인 (동대문구 등)
+            # 2페이지 확인 (동대문구/중랑구 등)
             if len(pdf.pages) >= 2:
                 tables2 = pdf.pages[1].extract_tables()
                 if tables2:
@@ -195,6 +203,8 @@ def detect_table_format(pdf_path: str) -> str | None:
                     if ncols2 >= 14:
                         first = str(biggest2[0][0] or '').strip()
                         if '일' in first and '자' in first:
+                            if ncols2 >= 18:  # 19열: 중랑구 계열
+                                return "jungnang"
                             return "dongdaemun"
 
         return None

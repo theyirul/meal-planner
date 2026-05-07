@@ -11,6 +11,15 @@
 2. 실행 지시가 아니라 고민으로 보이면, 의견으로 답변해줘.
 3. 중간중간 "Julie Zhuo critique" 역할로 UX 관점 개선 의견을 남겨줘.
 
+## 빌드 구조
+- 소스 템플릿: `index_server.html`
+- 빌드 결과: `index.html` (build.py가 데이터 주입해서 생성)
+- HTML/JS 수정 시 반드시 `index_server.html`을 수정해야 함. `index.html`만 고치면 다음 빌드 때 덮어씌워짐.
+
+## 배포
+- GitHub Pages (theyirul/meal-planner, main 브랜치)
+- Cowork 샌드박스에서 git push 불가 → 커밋까지만 하고, push는 직접 터미널에서
+
 ## 세션 구조
 - **공동 창업자 세션** — 제품 기획, 개발, 베타테스터 대응, 운영 전반. 프로젝트의 메인 세션.
 - 특정 업무가 반복적으로 커지면 그때 세션을 분리한다.
