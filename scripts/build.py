@@ -98,17 +98,22 @@ def parse_upload_filename(filename: str) -> dict | None:
 
 
 def scan_uploads() -> dict:
-    """uploads/ 폴더 스캔 → 지역+월별 그룹화"""
+    """uploads/ 폴더 + archives/ 서브폴더 스캔 → 지역+월별 그룹화"""
     if not UPLOAD_DIR.exists():
         return {}
     groups = defaultdict(list)
-    for fpath in UPLOAD_DIR.iterdir():
-        if not fpath.is_file():
+    scan_dirs = [UPLOAD_DIR, UPLOAD_DIR / 'archives']
+    for scan_dir in scan_dirs:
+        if not scan_dir.exists():
             continue
-        meta = parse_upload_filename(fpath.name)
-        if meta:
-            key = f"{meta['yyyymm']}_{meta['region']}"
-            groups[key].append(meta)
+        for fpath in scan_dir.iterdir():
+            if not fpath.is_file():
+                continue
+            meta = parse_upload_filename(fpath.name)
+            if meta:
+                meta['filename'] = str(fpath)  # 절대 경로로 업데이트
+                key = f"{meta['yyyymm']}_{meta['region']}"
+                groups[key].append(meta)
     return dict(groups)
 
 
