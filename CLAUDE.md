@@ -18,7 +18,7 @@
 
 ## 배포
 - GitHub Pages (theyirul/meal-planner, main 브랜치)
-- Cowork 샌드박스에서 git push 불가 → 커밋까지만 하고, push는 직접 터미널에서
+- Claude Code CLI에서 git push 가능 (확인됨 2026-05-10)
 
 ## 세션 구조
 - **공동 창업자 세션** — 제품 기획, 개발, 베타테스터 대응, 운영 전반. 프로젝트의 메인 세션.
