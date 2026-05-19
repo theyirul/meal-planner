@@ -2,5 +2,4 @@ __pycache__/
 *.pyc
 .DS_Store
 uploads/
-.DS_Store
-__pycache__/
+download/

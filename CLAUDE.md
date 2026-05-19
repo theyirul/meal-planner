@@ -16,6 +16,23 @@
 - 빌드 결과: `index.html` (build.py가 데이터 주입해서 생성)
 - HTML/JS 수정 시 반드시 `index_server.html`을 수정해야 함. `index.html`만 고치면 다음 빌드 때 덮어씌워짐.
 
+## 데이터 SoT와 빌드 모드
+- `uploads/`는 매달 갈아끼우는 **임시 폴더** (gitignore됨). 이번 달 새로 받은 PDF/JSON만 들어감.
+- 누적 데이터의 **SoT는 `index.html`의 EMBEDDED_DATA** (git에 커밋됨).
+- `build.py`는 **merge 모드 기본**: 기존 `index.html`의 EMBEDDED를 로드 → 신규 uploads 결과만 갈아끼움 → 다시 임베딩.
+- 같은 `region_id/YYYY-MM` 키가 충돌하면 새 데이터가 덮어씀.
+- 처음부터 다시 빌드하려면 `python3 scripts/build.py --clean` (기존 index.html 무시).
+
+## 입력 형식 우선순위
+1. **PDF (강력 권장)** — 텍스트 레이어가 있어 `pdfplumber`로 거의 100% 정확 파싱. `parse_pdf.py`·`parse_table.py`가 처리.
+2. xlsx — 레시피 매칭용으로 함께 받으면 좋음.
+3. 이미지 (JPG/PNG) — **OCR 오류 불가피. 사람 검증 단계 필수.** 800px급 저해상도는 어휘 다양한 어린이집 메뉴에서 60-70% 정확도 (2026-05-19 PoC). 가능하면 베타테스터·셀프 업로드 가이드에서 "PDF로 부탁드려요"를 디폴트로.
+
+## OCR 워크플로 (이미지 입력 시)
+- `scripts/crop_for_review.py`로 주차별 horizontal strip 크롭 → 클로드 multimodal vision 또는 외부 OCR로 셀별 추출.
+- 결과를 `uploads/{YYYYMM}_{지역}_{연령}_{유형}_수동.json` 형식으로 저장하면 build.py가 파서 우회하고 그대로 임베딩.
+- 알레르기 번호는 잘못 입력 시 아이 건강 직결 → **사람 검증 전까지 라이브에 안 올림**.
+
 ## 배포
 - GitHub Pages (theyirul/meal-planner, main 브랜치)
 - Claude Code CLI에서 git push 가능 (확인됨 2026-05-10)

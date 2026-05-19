@@ -47,6 +47,8 @@ REGION_MAP = {
     "서울시강서구": "gangseo",
     "의왕시": "uiwang",
     "창원시": "changwon",
+    "대구서구": "daegu-seogu",
+    "미소시루": "misosiru",
 }
 
 REGION_NAMES = {v: k for k, v in REGION_MAP.items()}
@@ -69,6 +71,8 @@ REGION_DISPLAY = {
     "서울시강서구": "서울 강서구",
     "의왕시": "경기 의왕시",
     "창원시": "경남 창원시",
+    "대구서구": "대구 서구 (구립화성파크드림어린이집)",
+    "미소시루": "미소시루 유치원",
 }
 
 
@@ -277,6 +281,25 @@ def process_upload_group(group_key: str, files: list[dict]) -> tuple[dict | None
     return result, data
 
 
+def load_existing_embedded() -> tuple[list[dict], dict]:
+    """현재 index.html에서 EMBEDDED_CENTERS·EMBEDDED_DATA 추출.
+    uploads/는 매달 갈아끼우는 임시 폴더 — 과거 데이터의 SoT는 index.html.
+    빌드는 항상 기존 index.html에 신규 uploads 결과를 머지한다.
+    """
+    out_path = ROOT / 'index.html'
+    if not out_path.exists():
+        return [], {}
+    html = out_path.read_text(encoding='utf-8')
+    m = re.search(r'const EMBEDDED_CENTERS=(\[.*?\]);const EMBEDDED_DATA=(\{.*?\});', html, re.DOTALL)
+    if not m:
+        return [], {}
+    try:
+        return json.loads(m.group(1)), json.loads(m.group(2))
+    except json.JSONDecodeError as e:
+        print(f"[WARN] 기존 index.html EMBEDDED 파싱 실패: {e} → 빈 상태에서 시작")
+        return [], {}
+
+
 def build_embedded_html(centers: list[dict], all_data: dict):
     """index.html에 데이터 직접 임베딩 (중간 파일 없이)"""
     index_src = ROOT / 'index_server.html'
@@ -298,8 +321,17 @@ def main():
     print("매일아침 — 데이터 빌드")
     print("=" * 50)
 
+    clean = '--clean' in sys.argv
+    if clean:
+        print("[--clean] 기존 index.html 무시, uploads/만으로 빌드")
+        old_centers, old_data = [], {}
+    else:
+        old_centers, old_data = load_existing_embedded()
+        if old_data:
+            print(f"[merge 모드] 기존 index.html에서 {len(old_centers)}지역 / {len(old_data)} month키 로드")
+
     results = []
-    all_data = {}
+    all_data = dict(old_data)
 
     groups = scan_uploads()
     if groups:
@@ -308,29 +340,40 @@ def main():
             result, data = process_upload_group(key, groups[key])
             if result and data:
                 results.append(result)
-                all_data[f"{result['id']}/{result['month_key']}"] = data
+                key_str = f"{result['id']}/{result['month_key']}"
+                if key_str in all_data:
+                    print(f"  [덮어씀] {key_str} (기존 데이터 위에 새 데이터)")
+                all_data[key_str] = data
     else:
         print("\n[uploads] 비어있음")
 
-    if results:
-        merged = {}
-        for r in results:
-            rid = r['id']
-            if rid in merged:
-                months = set(merged[rid]['months'])
-                months.add(r['month_key'])
-                merged[rid]['months'] = sorted(months)
-            else:
-                merged[rid] = {
-                    "id": rid, "name": r['name'],
-                    "region": r['region'], "months": [r['month_key']]
-                }
-        centers = sorted(merged.values(), key=lambda c: c['name'])
-        build_embedded_html(centers, all_data)
-        print(f"\n{'=' * 50}")
-        print(f"완료! {len(centers)}개 지역 데이터 생성됨")
-    else:
+    if not results and not old_data:
         print("\n처리된 데이터가 없습니다.")
+        return
+
+    # centers 머지: 기존 + 신규 결과
+    merged = {c['id']: dict(c) for c in old_centers}
+    for r in results:
+        rid = r['id']
+        if rid in merged:
+            months = set(merged[rid].get('months', []))
+            months.add(r['month_key'])
+            merged[rid]['months'] = sorted(months)
+            # 표시명 새 빌드 결과로 갱신 (REGION_DISPLAY 변경 반영)
+            merged[rid]['name'] = r['name']
+            merged[rid]['region'] = r['region']
+        else:
+            merged[rid] = {
+                "id": rid, "name": r['name'],
+                "region": r['region'], "months": [r['month_key']]
+            }
+    centers = sorted(merged.values(), key=lambda c: c['name'])
+    build_embedded_html(centers, all_data)
+    print(f"\n{'=' * 50}")
+    print(f"완료! {len(centers)}개 지역 / {len(all_data)} month키 데이터 임베딩")
+    if results:
+        new_keys = [f"{r['id']}/{r['month_key']}" for r in results]
+        print(f"이번 빌드 신규/갱신: {', '.join(new_keys)}")
 
 
 if __name__ == '__main__':
