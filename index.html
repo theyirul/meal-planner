@@ -537,7 +537,7 @@ async function init(){
   regions.forEach(r=>{
     const o=document.createElement('option');
     o.value=r;
-    o.textContent=regionInfo[r].isNew?`${r} [New]`:r;
+    o.textContent=regionInfo[r].isNew?`${r} ✨`:r;
     regionSel.appendChild(o);
   });
 
