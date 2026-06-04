@@ -519,12 +519,25 @@ async function init(){
     else centers=[];
   }
 
-  // Populate region dropdown (unique regions)
+  // Populate region dropdown — 이번 달 업데이트된 지역 우선 + [New] 표시
   const regionSel=document.getElementById('regionSel');
-  const regions=[...new Set(centers.map(c=>c.region))].sort();
+  const _now=new Date();
+  const _curKey=`${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}`;
+  const regionInfo={};
+  centers.forEach(c=>{
+    const isNew=Array.isArray(c.months)&&c.months.includes(_curKey);
+    if(!(c.region in regionInfo)||isNew)regionInfo[c.region]={isNew};
+  });
+  const regions=Object.keys(regionInfo).sort((a,b)=>{
+    const na=regionInfo[a].isNew,nb=regionInfo[b].isNew;
+    if(na!==nb)return na?-1:1;       // 업데이트된 지역을 위로
+    return a.localeCompare(b,'ko');  // 그 안에서는 가나다순
+  });
   regionSel.innerHTML='<option value="">지역을 선택하세요</option>';
   regions.forEach(r=>{
-    const o=document.createElement('option');o.value=r;o.textContent=r;
+    const o=document.createElement('option');
+    o.value=r;
+    o.textContent=regionInfo[r].isNew?`${r} [New]`:r;
     regionSel.appendChild(o);
   });
 
