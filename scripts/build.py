@@ -230,8 +230,22 @@ def process_upload_group(group_key: str, files: list[dict]) -> tuple[dict | None
                 print(f"  [수동 JSON] {f['filename']}")
                 with open(json_path, encoding='utf-8') as jf:
                     data = json.load(jf)
+                # 수동 JSON엔 레시피가 없으므로, 같은 그룹에 레시피 파일이 있으면 함께 파싱
+                recipes = {}
+                for rf in files:
+                    if rf['subtype'] == '레시피':
+                        rpath = UPLOAD_DIR / rf['filename']
+                        if rpath.exists():
+                            ext = rpath.suffix.lower()
+                            try:
+                                if ext == '.xlsx':
+                                    recipes = parse_recipe_xlsx(str(rpath))
+                                elif ext == '.pdf':
+                                    recipes = parse_recipe_pdf(str(rpath))
+                            except Exception as e:
+                                print(f"  [WARN] 레시피 파싱 실패: {e}")
                 # build_output_json 형식으로 변환
-                data = build_output_json(data['year'], data['month'], data['menus'], {})
+                data = build_output_json(data['year'], data['month'], data['menus'], recipes)
                 year, month = data['year'], data['month']
                 month_key = f"{year}-{month:02d}"
                 display_name = REGION_DISPLAY.get(region_name, region_name)

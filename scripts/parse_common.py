@@ -154,15 +154,37 @@ def build_output_json(year: int, month: int, menus: dict, recipes: dict | None =
     }
 
 
+# 알레르기 표기 원문자 (레시피명에 붙는 경우: "감자맑은국 ⑤⑥")
+_ALLERGY_MARKS = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳'
+
+
+def normalize_menu_name(name: str) -> str:
+    """메뉴/레시피명을 핵심 음식명으로 정규화.
+    괄호와 그 안 내용("(온)", "(고춧가루제외)"), 알레르기 원문자, 공백 제거."""
+    s = re.sub(r'[\(\（][^\)\）]*[\)\）]', '', name)
+    s = ''.join(ch for ch in s if ch not in _ALLERGY_MARKS).replace(' ', '').strip()
+    if not s:
+        # 괄호가 메뉴명 전체를 감싼 대체메뉴("(순두부백탕)"): 괄호만 벗기고 내용 유지
+        s = re.sub(r'[\(\)\（\）]', '', name)
+        s = ''.join(ch for ch in s if ch not in _ALLERGY_MARKS).replace(' ', '').strip()
+    return s
+
+
 def match_recipe(menu_name: str, recipes: dict) -> str:
-    """메뉴명으로 레시피 매칭 (정확 → 공백무시 → 부분)"""
+    """메뉴명으로 레시피 매칭 (원본 정확 → 정규화 정확 → 정규화 부분).
+    정규화로 레시피명의 알레르기 기호("감자맑은국 ⑤⑥")·괄호 수식어를 흡수하고,
+    부분매칭은 '정규화 레시피명 ⊆ 정규화 메뉴명' 방향만 허용해
+    '토마토→토마토스파게티' 같은 짧은 과일·간식명 오매칭을 막는다."""
     if menu_name in recipes:
         return recipes[menu_name]
-    clean = menu_name.replace(' ', '')
+    target = normalize_menu_name(menu_name)
+    if not target:
+        return ''
     for rname, rtext in recipes.items():
-        if rname.replace(' ', '') == clean:
+        if normalize_menu_name(rname) == target:
             return rtext
     for rname, rtext in recipes.items():
-        if rname in menu_name or menu_name in rname:
+        rn = normalize_menu_name(rname)
+        if rn and rn in target:
             return rtext
     return ''
