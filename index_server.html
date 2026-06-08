@@ -759,7 +759,11 @@ async function loadMenuData(){
     // 오늘이 포함된 주로 자동 이동
     const now=new Date();now.setHours(0,0,0,0);
     const todayDs=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-    const twI=wks.findIndex(wk=>wk.includes(todayDs));
+    let twI=wks.findIndex(wk=>wk.includes(todayDs));
+    if(twI<0){
+      twI=wks.findIndex(wk=>wk[wk.length-1]>=todayDs); // 오늘이 안 잡히면(일요일·범위밖) 오늘 이후 첫 주
+      if(twI<0)twI=wks.length-1;                        // 미래(데이터 범위 밖)면 최신 주
+    }
     if(twI>=0)wI=twI;
     af();
     rw();
