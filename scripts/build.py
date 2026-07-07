@@ -28,6 +28,7 @@ from generate_menu import extract_menus, detect_month_year, extract_allergies, m
 from parse_pdf import parse_pdf_menu, build_json_from_pdf
 from parse_table import detect_table_format, parse_table_pdf, parse_recipe_xlsx, parse_recipe_pdf, _parse_vertical_pdf, _parse_school_pdf
 from parse_common import build_output_json
+from parse_hwp import parse_hwp_menu
 
 # 지역명 → ID 매핑
 REGION_MAP = {
@@ -248,6 +249,33 @@ def process_upload_group(group_key: str, files: list[dict]) -> tuple[dict | None
                 data = build_output_json(data['year'], data['month'], data['menus'], recipes)
                 year, month = data['year'], data['month']
                 month_key = f"{year}-{month:02d}"
+                display_name = REGION_DISPLAY.get(region_name, region_name)
+                result = {"id": region_id, "name": display_name, "region": display_name, "month_key": month_key}
+                return result, data
+
+    # HWP 식단표 (창원시 등 한글 파일) → parse_hwp로 그리드 파싱
+    for f in files:
+        if f['subtype'] == '식단표' and f['ext'].lower() == 'hwp':
+            hwp_path = UPLOAD_DIR / f['filename']
+            if hwp_path.exists():
+                print(f"  [HWP 식단표] {f['filename']}")
+                yyyymm = f['yyyymm']
+                pdata = parse_hwp_menu(str(hwp_path), int(yyyymm[:4]), int(yyyymm[4:6]), f['age'])
+                recipes = {}
+                for rf in files:
+                    if rf['subtype'] == '레시피':
+                        rpath = UPLOAD_DIR / rf['filename']
+                        if rpath.exists():
+                            ext = rpath.suffix.lower()
+                            try:
+                                if ext == '.xlsx':
+                                    recipes = parse_recipe_xlsx(str(rpath))
+                                elif ext == '.pdf':
+                                    recipes = parse_recipe_pdf(str(rpath))
+                            except Exception as e:
+                                print(f"  [WARN] 레시피 파싱 실패: {e}")
+                data = build_output_json(pdata['year'], pdata['month'], pdata['menus'], recipes)
+                month_key = f"{data['year']}-{data['month']:02d}"
                 display_name = REGION_DISPLAY.get(region_name, region_name)
                 result = {"id": region_id, "name": display_name, "region": display_name, "month_key": month_key}
                 return result, data
