@@ -29,6 +29,7 @@ from parse_pdf import parse_pdf_menu, build_json_from_pdf
 from parse_table import detect_table_format, parse_table_pdf, parse_recipe_xlsx, parse_recipe_pdf, _parse_vertical_pdf, _parse_school_pdf
 from parse_common import build_output_json
 from parse_hwp import parse_hwp_menu
+from crosscheck import crosscheck, print_report
 
 # 지역명 → ID 매핑
 REGION_MAP = {
@@ -386,6 +387,15 @@ def main():
                 if key_str in all_data:
                     print(f"  [덮어씀] {key_str} (기존 데이터 위에 새 데이터)")
                 all_data[key_str] = data
+                # 조리지시서(xlsx) 있으면 자동 교차검증 리포트
+                xlsx = next((UPLOAD_DIR / f['filename'] for f in groups[key]
+                             if f['subtype'] == '레시피' and f['ext'].lower() == 'xlsx'), None)
+                if xlsx and Path(xlsx).exists():
+                    try:
+                        rep = crosscheck(str(xlsx), data.get('menus', {}))
+                        print_report(rep, result['id'])
+                    except Exception as e:
+                        print(f"  [교차검증 스킵] {e}")
     else:
         print("\n[uploads] 비어있음")
 
