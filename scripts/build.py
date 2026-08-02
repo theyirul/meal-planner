@@ -29,6 +29,7 @@ from parse_pdf import parse_pdf_menu, build_json_from_pdf
 from parse_table import detect_table_format, parse_table_pdf, parse_recipe_xlsx, parse_recipe_pdf, _parse_vertical_pdf, _parse_school_pdf
 from parse_common import build_output_json
 from parse_hwp import parse_hwp_menu
+from parse_hwp_gwangjin import parse as parse_hwp_gwangjin
 from crosscheck import crosscheck, print_report
 
 # 지역명 → ID 매핑
@@ -173,6 +174,34 @@ def _process_standard(pdf_file: Path, xlsx_file: Path | None = None) -> dict | N
         return None
 
 
+def _flatten_menu_recipes(xlsx_path: str) -> dict:
+    """날짜별 레시피 시트(구분/메뉴명/…/조리방법) → {메뉴명: 조리방법}.
+
+    parse_recipe_xlsx는 헤더 '음식명'을 찾는데 광진구 시트는 '메뉴명'이라 0개가 나온다.
+    같은 시트를 날짜 단위로 읽는 extract_menus를 재사용해 폴백한다.
+    """
+    out = {}
+    aliases = {}
+    for items in extract_menus(xlsx_path).values():
+        for it in items:
+            name = (it.get('name') or '').strip()
+            recipe = (it.get('recipe') or '').strip()
+            if not name or not recipe:
+                continue
+            if name not in out:
+                out[name] = recipe
+            # 레시피명이 식단표명보다 긴 경우를 위한 별칭.
+            # 공용 매처는 '레시피명 ⊆ 메뉴명' 방향만 허용하므로 반대 방향은 여기서 흡수한다.
+            #   '찐고구마\n*증편 대체메뉴' → '찐고구마'
+            #   '소고기콩나물밥&양념장'      → '소고기콩나물밥'
+            short = name.split('\n')[0].split('&')[0].strip()
+            if short and short != name:
+                aliases.setdefault(short, recipe)
+    for k, v in aliases.items():
+        out.setdefault(k, v)
+    return out
+
+
 def _apply_patch(data: dict, patch_path: Path) -> dict:
     """패치 JSON을 파싱 결과에 적용. replace/add/remove 지원."""
     with open(patch_path, encoding='utf-8') as f:
@@ -242,6 +271,8 @@ def process_upload_group(group_key: str, files: list[dict]) -> tuple[dict | None
                             try:
                                 if ext == '.xlsx':
                                     recipes = parse_recipe_xlsx(str(rpath))
+                                    if not recipes:
+                                        recipes = _flatten_menu_recipes(str(rpath))
                                 elif ext == '.pdf':
                                     recipes = parse_recipe_pdf(str(rpath))
                             except Exception as e:
@@ -254,14 +285,22 @@ def process_upload_group(group_key: str, files: list[dict]) -> tuple[dict | None
                 result = {"id": region_id, "name": display_name, "region": display_name, "month_key": month_key}
                 return result, data
 
-    # HWP 식단표 (창원시 등 한글 파일) → parse_hwp로 그리드 파싱
+    # HWP 식단표 (창원시·광진구 등 한글 파일) → 지역별 그리드 파서
     for f in files:
         if f['subtype'] == '식단표' and f['ext'].lower() == 'hwp':
             hwp_path = UPLOAD_DIR / f['filename']
             if hwp_path.exists():
                 print(f"  [HWP 식단표] {f['filename']}")
                 yyyymm = f['yyyymm']
-                pdata = parse_hwp_menu(str(hwp_path), int(yyyymm[:4]), int(yyyymm[4:6]), f['age'])
+                yy, mm = int(yyyymm[:4]), int(yyyymm[4:6])
+                if region_name == '광진구':
+                    # 광진: '일자' 헤더 + 괄호숫자 알레르기 + 세로 적층 (창원과 구조 다름)
+                    gmenus, gnotes = parse_hwp_gwangjin(str(hwp_path), yy, mm)
+                    for n in gnotes:
+                        print(f"  [끼니 경계 보정] {n}")
+                    pdata = {'year': yy, 'month': mm, 'menus': gmenus}
+                else:
+                    pdata = parse_hwp_menu(str(hwp_path), yy, mm, f['age'])
                 recipes = {}
                 for rf in files:
                     if rf['subtype'] == '레시피':
@@ -271,6 +310,8 @@ def process_upload_group(group_key: str, files: list[dict]) -> tuple[dict | None
                             try:
                                 if ext == '.xlsx':
                                     recipes = parse_recipe_xlsx(str(rpath))
+                                    if not recipes:
+                                        recipes = _flatten_menu_recipes(str(rpath))
                                 elif ext == '.pdf':
                                     recipes = parse_recipe_pdf(str(rpath))
                             except Exception as e:
