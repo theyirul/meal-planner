@@ -777,8 +777,11 @@ async function loadMenuData(){
 // ── Build calendar (dynamic) ──
 function buildCalendar(year,month){
   const wrap=document.getElementById('calWrap');
-  const firstDay=new Date(year,month-1,1);
-  let emptyCells=firstDay.getDay()===0?0:((firstDay.getDay()+6)%7);
+  // 앞 빈 칸은 '실제로 표시되는 첫 날' 기준으로 센다.
+  // 1일 기준으로 세면, 1일이 토요일인 달(2026-08)에서 토요일을 숨길 때 월요일이 금요일 칸으로 밀린다.
+  const firstShown=new Date(year,month-1,1);
+  while(firstShown.getDay()===0||(hideSat&&firstShown.getDay()===6))firstShown.setDate(firstShown.getDate()+1);
+  const emptyCells=(firstShown.getDay()+6)%7;
   const lastDate=new Date(year,month,0).getDate();
 
   // 월 네비게이션 헤더
@@ -802,13 +805,7 @@ function buildCalendar(year,month){
   h+='<div class="ch">목</div><div class="ch">금</div>';
   if(!hideSat)h+='<div class="ch sa">토</div>';
 
-  // 토요일 숨기면 빈 셀 수 재계산 (토 제외 = 5열 기준)
-  let adjEmpty=emptyCells;
-  if(hideSat&&emptyCells>0){
-    // 월~금만 세므로 토 컬럼 제거 반영
-    adjEmpty=Math.min(emptyCells,4);
-  }
-  for(let i=0;i<adjEmpty;i++)h+='<div class="cd em"></div>';
+  for(let i=0;i<emptyCells;i++)h+='<div class="cd em"></div>';
 
   for(let day=1;day<=lastDate;day++){
     const d=new Date(year,month-1,day);
