@@ -21,6 +21,8 @@ from html.parser import HTMLParser
 CIRCLED = {chr(0x2460 + i): i + 1 for i in range(20)}  # ①..⑳ → 1..20
 CIRCLED_RE = re.compile('[' + ''.join(CIRCLED.keys()) + ']')
 SEC_MAP = {'오전간식': '오전간식', '점심': '점심', '점 심': '점심', '오후간식': '오후간식'}
+# 날짜 행 헤더. 창원은 2026-07까지 '날짜', 2026-08부터 '일자'를 쓴다.
+DATE_HDR = ('날짜', '일자')
 
 
 def _find_hwp5html() -> str:
@@ -81,19 +83,54 @@ class _Grid(HTMLParser):
 
 def _parse_cell(raw: str, sec: str) -> list[dict]:
     items = []
+    pending_prefix = ''  # 줄바꿈으로 떨어진 "(고춧가루제외)" 같은 수식어 → 다음 메뉴 앞에 붙임
+    join_or = False      # "복숭아⑪ 또는 창원시지원과일" → 한 항목으로 묶기 (2026-08 창원)
     for tok in raw.split():
         allergy = [CIRCLED[c] for c in tok if c in CIRCLED]
         name = CIRCLED_RE.sub('', tok).strip()
         if not name:
+            # 알레르기 원문자만 있는 토큰 = 셀 안 줄바꿈으로 앞 메뉴명과 떨어진 조각.
+            # 버리면 알레르기 정보가 사라지므로 반드시 앞 메뉴에 병합한다. (2026-08 창원 포맷)
+            if items:
+                for x in allergy:
+                    if x not in items[-1]['allergy']:
+                        items[-1]['allergy'].append(x)
             continue
-        # 완전 괄호 토큰(재료설명 등)은 앞 메뉴명에 병합. "(냉)콩국수"처럼 괄호 뒤 글자 있으면 독립 항목.
-        if name.startswith('(') and name.endswith(')') and items:
+        if name.startswith('(') and name.endswith(')'):
+            # "(고춧가루제외)"류 수식어는 뒤에 오는 메뉴를 꾸민다("(고춧가루제외)콩나물무침"과 동일 의미).
+            if '제외' in name:
+                pending_prefix += name
+                continue
+            # 그 밖의 완전 괄호 토큰(재료설명·대체메뉴 등)은 앞 메뉴명에 병합.
+            if items:
+                items[-1]['name'] += name
+                for x in allergy:
+                    if x not in items[-1]['allergy']:
+                        items[-1]['allergy'].append(x)
+                continue
+        if name == '또는' and items:
+            join_or = True
+            continue
+        # "삼색나물비빔밥&" + "간장양념장⑤⑥" — & 뒤에서 줄바꿈된 한 메뉴. 붙여서 한 항목으로.
+        if items and items[-1]['name'].endswith('&'):
             items[-1]['name'] += name
             for x in allergy:
                 if x not in items[-1]['allergy']:
                     items[-1]['allergy'].append(x)
             continue
+        if pending_prefix:
+            name = pending_prefix + name
+            pending_prefix = ''
+        if join_or:
+            items[-1]['name'] += ' 또는 ' + name
+            for x in allergy:
+                if x not in items[-1]['allergy']:
+                    items[-1]['allergy'].append(x)
+            join_or = False
+            continue
         items.append({'name': name, 'allergy': allergy, 'sec': sec})
+    if pending_prefix and items:  # 셀 마지막에 남았으면 앞 메뉴에 붙여 정보 유실 방지
+        items[-1]['name'] += pending_prefix
     return items
 
 
@@ -105,7 +142,8 @@ def _select_grid(tables: list, age: str):
     titles = {}         # index -> title text
     for idx, tb in enumerate(tables):
         flat = ' '.join(v for row in tb for v in row.values())
-        is_grid = any((row.get(min(row)) or '').strip() in ('날짜',) or '날짜' in row.values()
+        is_grid = any((row.get(min(row)) or '').strip() in DATE_HDR
+                      or any(h in row.values() for h in DATE_HDR)
                       for row in tb if row) and bool(re.search(r'\d{1,2}\s*\[', flat))
         if is_grid:
             grids.append((idx, tb))
@@ -140,7 +178,7 @@ def parse_hwp_menu(hwp_path: str, year: int, month: int, age: str = '1-2세') ->
     i = 0
     while i < len(grid):
         row = grid[i]
-        if '날짜' not in [(row.get(k) or '') for k in row]:
+        if not any(h in [(row.get(k) or '') for k in row] for h in DATE_HDR):
             i += 1; continue
         date_cols = {}
         for c in sorted(row):
@@ -151,7 +189,7 @@ def parse_hwp_menu(hwp_path: str, year: int, month: int, age: str = '1-2세') ->
         j = i + 1
         while j < len(grid):
             rj = grid[j]
-            if '날짜' in [(rj.get(k) or '') for k in rj]:
+            if any(h in [(rj.get(k) or '') for k in rj] for h in DATE_HDR):
                 break
             for k in sorted(rj):
                 lbl = (rj[k] or '').strip()

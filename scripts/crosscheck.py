@@ -62,25 +62,36 @@ def crosscheck(xlsx_path: str, menus: dict) -> dict | None:
         return None
 
     nutri = next((s for s in wb.sheetnames if '영양소 분석표' in s and '테마' not in s), None)
-    if not nutri:
+    recipe_sheets = [s for s in wb.sheetnames if s.strip().startswith('조리지시서')]
+    if not nutri and not recipe_sheets:
         return None  # 조리지시서 형식 아님
 
     # 1) 배정 검증용: (day,sec)->set(norm 음식명)
-    ws = wb[nutri]
+    #    1순위 '에너지 및 영양소 분석표'. 없으면(2026-08 창원) 조리지시서 시트의 날짜·끼니로 대체.
+    #    두 시트 모두 [날짜, 끼니, 음식명, …] 열 순서가 같아 같은 루프를 쓴다.
+    src_sheets = [nutri] if nutri else recipe_sheets
+    assign_src = '영양소분석표' if nutri else '조리지시서'
     xls = {}
-    day = sec = None
-    for r in range(6, ws.max_row + 1):
-        a, b, c = ws.cell(r, 1).value, ws.cell(r, 2).value, ws.cell(r, 3).value
-        if a:
-            m = re.match(r'(\d{1,2})', str(a).strip())
-            if m:
-                day = int(m.group(1))
-        if b and str(b).strip() in SECS:
-            sec = str(b).strip()
-        if c and day and sec:
-            nm = _norm(c)
-            if nm and nm != '음식명' and not nm.startswith('*'):
-                xls.setdefault((day, sec), set()).add(nm)
+    undated = set()  # 날짜 라벨이 빈 지시서 항목 (2026-08 창원 5주차: 24일 라벨 누락)
+    for sn in src_sheets:
+        ws = wb[sn]
+        day = sec = None
+        for r in range(6, ws.max_row + 1):
+            a, b, c = ws.cell(r, 1).value, ws.cell(r, 2).value, ws.cell(r, 3).value
+            if a:
+                m = re.match(r'(\d{1,2})', str(a).strip())
+                if m:
+                    day = int(m.group(1))
+            if b and str(b).strip() in SECS:
+                sec = str(b).strip()
+            if c and sec:
+                nm = _norm(c)
+                if not nm or nm == '음식명' or nm.startswith('*'):
+                    continue
+                if day:
+                    xls.setdefault((day, sec), set()).add(nm)
+                else:
+                    undated.add(nm)
 
     hwp = {}
     for dt, items in menus.items():
@@ -90,15 +101,19 @@ def crosscheck(xlsx_path: str, menus: dict) -> dict | None:
 
     mis = []  # 배정 불일치 (표기변형 제외 어려우니 전량 보고, 판단은 사람)
     for k in sorted(set(xls) | set(hwp)):
-        ox, oh = xls.get(k, set()) - hwp.get(k, set()), hwp.get(k, set()) - xls.get(k, set())
+        x, h = xls.get(k, set()), hwp.get(k, set())
+        # "키위또는창원시지원과일"처럼 선택지가 붙은 메뉴는 어느 쪽이든 맞으면 일치로 본다.
+        h_exp = set(h)
+        for n in h:
+            h_exp.update(p for p in n.split('또는') if p)
+        ox = x - h_exp
+        oh = {n for n in h if not ({n} | set(n.split('또는'))) & x}
         if ox or oh:
             mis.append((k, sorted(ox), sorted(oh)))
 
     # 2) 알레르기 누락 flag: 주차별 조리지시서 식재료
     recipe_ings = {}
-    for sn in wb.sheetnames:
-        if not sn.startswith('조리지시서'):
-            continue
+    for sn in recipe_sheets:
         w = wb[sn]
         dish = None
         for r in range(7, w.max_row + 1):
@@ -120,7 +135,8 @@ def crosscheck(xlsx_path: str, menus: dict) -> dict | None:
                 gaps.append((dt, it['sec'], it['name'], sorted(it['allergy']),
                              {ALLERGEN_NAME.get(n, n): imp[n] for n in sorted(miss)}))
 
-    return {'assign_mismatch': mis, 'allergen_gaps': gaps, 'blocks': len(set(xls) | set(hwp))}
+    return {'assign_mismatch': mis, 'allergen_gaps': gaps, 'undated': sorted(undated),
+            'blocks': len(set(xls) | set(hwp)), 'assign_src': assign_src}
 
 
 def print_report(report: dict, region: str = ''):
@@ -128,12 +144,19 @@ def print_report(report: dict, region: str = ''):
         return
     print(f"\n  ── 교차검증{(' [' + region + ']') if region else ''} ──")
     mis = report['assign_mismatch']
-    print(f"  배정 대조: {report['blocks']}블록 중 불일치 {len(mis)}건 (표기변형 포함, 사람 확인)")
+    print(f"  배정 대조({report.get('assign_src', '?')} 기준): "
+          f"{report['blocks']}블록 중 불일치 {len(mis)}건 (표기변형 포함, 사람 확인)")
+    undated = set(report.get('undated', []))
     for (day, sec), ox, oh in mis:
         d = []
         if ox: d.append(f"지시서만={ox}")
         if oh: d.append(f"식단표만={oh}")
-        print(f"    {day}일 {sec}: {' / '.join(d)}")
+        # 지시서에 날짜 라벨 없이 실린 메뉴면 배정 오류가 아니라 지시서 표기 누락이다.
+        matched = oh and all(({n} | set(n.split('또는'))) & undated for n in oh)
+        tag = '  ← 지시서 날짜라벨 누락 추정' if matched and not ox else ''
+        print(f"    {day}일 {sec}: {' / '.join(d)}{tag}")
+    if undated:
+        print(f"  지시서 날짜 라벨 없는 항목: {len(undated)}건 {sorted(undated)[:8]}")
     gaps = report['allergen_gaps']
     print(f"  알레르기 누락 후보: {len(gaps)}건 (식재료엔 있으나 식단표 미표기 — 원본 미표기면 유지 가능)")
     for dt, sec, nm, have, hits in gaps:
