@@ -203,7 +203,7 @@ def _flatten_menu_recipes(xlsx_path: str) -> dict:
 
 
 def _apply_patch(data: dict, patch_path: Path) -> dict:
-    """패치 JSON을 파싱 결과에 적용. replace/add/remove 지원."""
+    """패치 JSON을 파싱 결과에 적용. replace/add/remove/allergy 지원."""
     with open(patch_path, encoding='utf-8') as f:
         patch = json.load(f)
 
@@ -239,8 +239,31 @@ def _apply_patch(data: dict, patch_path: Path) -> dict:
             applied += 1
             menus[date_str] = items
 
+        # allergy: {"이름": [번호…]} — 기존 아이템에 알레르기 번호만 추가(이름·레시피 보존).
+        # 식단표 원본이 빠뜨린 걸 조리지시서 식재료 근거로 보강할 때 쓴다.
+        for nm, nums in ops.get('allergy', {}).items():
+            hit = next((it for it in items if it['name'] == nm), None)
+            if not hit:
+                print(f"    [패치] {date_str} '{nm}' — 해당 메뉴 없음, 스킵")
+                continue
+            before = set(hit.get('allergy') or [])
+            hit['allergy'] = sorted(before | set(nums))
+            if set(hit['allergy']) != before:
+                applied += 1
+
     print(f"    [패치] {applied}건 적용 완료")
     data['menus'] = menus
+    return data
+
+
+def _apply_patches(files: list[dict], data: dict) -> dict:
+    """그룹에 패치 JSON이 있으면 적용. 입력 형식(수동 JSON·HWP·PDF)과 무관하게 거쳐야 한다."""
+    for f in files:
+        if f['subtype'] == '패치' and f['ext'] == 'json':
+            patch_path = UPLOAD_DIR / f['filename']
+            if patch_path.exists():
+                print(f"  [패치 적용] {Path(f['filename']).name}")
+                data = _apply_patch(data, patch_path)
     return data
 
 
@@ -279,6 +302,7 @@ def process_upload_group(group_key: str, files: list[dict]) -> tuple[dict | None
                                 print(f"  [WARN] 레시피 파싱 실패: {e}")
                 # build_output_json 형식으로 변환
                 data = build_output_json(data['year'], data['month'], data['menus'], recipes)
+                data = _apply_patches(files, data)
                 year, month = data['year'], data['month']
                 month_key = f"{year}-{month:02d}"
                 display_name = REGION_DISPLAY.get(region_name, region_name)
@@ -317,6 +341,7 @@ def process_upload_group(group_key: str, files: list[dict]) -> tuple[dict | None
                             except Exception as e:
                                 print(f"  [WARN] 레시피 파싱 실패: {e}")
                 data = build_output_json(pdata['year'], pdata['month'], pdata['menus'], recipes)
+                data = _apply_patches(files, data)
                 month_key = f"{data['year']}-{data['month']:02d}"
                 display_name = REGION_DISPLAY.get(region_name, region_name)
                 result = {"id": region_id, "name": display_name, "region": display_name, "month_key": month_key}
@@ -350,13 +375,7 @@ def process_upload_group(group_key: str, files: list[dict]) -> tuple[dict | None
     if data is None:
         return None, None
 
-    # 패치 JSON 적용 (있으면)
-    for f in files:
-        if f['subtype'] == '패치' and f['ext'] == 'json':
-            patch_path = UPLOAD_DIR / f['filename']
-            if patch_path.exists():
-                print(f"  [패치 적용] {f['filename']}")
-                data = _apply_patch(data, patch_path)
+    data = _apply_patches(files, data)
 
     year, month = data['year'], data['month']
     month_key = f"{year}-{month:02d}"
