@@ -16,6 +16,7 @@
   --border:#E5E7EB;--border-light:#F3F4F6;
   --radius:10px;
   --brand:#333333;--brand-light:#F3F4F6;--brand-border:#D1D5DB;
+  --shop:#B45309;--shop-bg:#FFFBEB;--shop-border:#FCD34D; /* 추천 제품(제휴) 전용 — alert/ok와 구분되는 앰버 */
 }
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);padding:28px 20px;max-width:860px;margin:0 auto;font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
@@ -195,28 +196,6 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
 .wi.chk .sb,.wi.chk .ag{opacity:.2}
 .wi.chk .wh .ar{color:var(--border)}
 
-/* ── Products / 추천 tab ── */
-.prod-header{margin-bottom:24px}
-.prod-header h2{font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:6px}
-.prod-header p{font-size:.84rem;color:var(--text2);line-height:1.5}
-.prod-tags{display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap}
-.prod-tag{font-size:.8rem;padding:6px 14px;border-radius:20px;background:var(--border-light);color:var(--text2);cursor:pointer;border:1.5px solid transparent;font-weight:500;transition:all .15s}
-.prod-tag:active{border-color:var(--accent-border)}
-.prod-tag.on{background:var(--brand-light);color:var(--brand);border-color:var(--brand-border);font-weight:600}
-.prod-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
-.prod-card{background:var(--card);border:1.5px solid var(--border-light);border-radius:12px;overflow:hidden;transition:all .15s;cursor:pointer;text-decoration:none;color:inherit;display:block}
-.prod-card:active{border-color:var(--accent-border);box-shadow:0 4px 16px rgba(0,0,0,.08);transform:translateY(-2px)}
-.prod-img{width:100%;aspect-ratio:1;object-fit:cover;background:var(--border-light);display:block}
-.prod-info{padding:12px 14px 16px}
-.prod-name{font-size:.88rem;font-weight:600;color:var(--text);margin-bottom:4px;line-height:1.4}
-.prod-desc{font-size:.76rem;color:var(--text3);line-height:1.45;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.prod-bottom{display:flex;align-items:center;justify-content:space-between}
-.prod-price{font-size:.92rem;font-weight:700;color:var(--text)}
-.prod-cta{font-size:.72rem;padding:5px 12px;border-radius:6px;background:var(--brand);color:#fff;font-weight:600;border:none;white-space:nowrap}
-.prod-badge{display:inline-block;font-size:.68rem;padding:2px 8px;border-radius:4px;background:var(--brand-light);color:var(--brand);font-weight:600;margin-bottom:8px}
-.prod-empty{text-align:center;padding:40px 20px;color:var(--text3);font-size:.9rem}
-.prod-disclaimer{margin-top:24px;padding:14px 18px;background:var(--border-light);border-radius:var(--radius);font-size:.76rem;color:var(--text3);line-height:1.5}
-
 /* ── TODAY CAROUSEL ── */
 /* Stacked card effect — ghost cards behind */
 .td-sec{margin-bottom:14px}
@@ -279,6 +258,10 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
 .ft-links a:active{color:var(--text)}
 .ft-links .dot{color:var(--border);font-size:.6rem}
 .ft-copy{font-size:.74rem;color:var(--text3)}
+.ft-shop{display:flex;flex-direction:column;align-items:center;gap:8px;margin:4px 0 8px;padding-bottom:16px;border-bottom:1px solid var(--border-light)}
+.ft-shop-link{display:inline-block;padding:8px 18px;border:none;border-radius:20px;background:var(--shop-bg);font-size:.8rem;color:var(--shop);text-decoration:none;font-weight:600;transition:all .15s}
+.ft-shop-link:active{background:var(--shop);color:#fff}
+.ft-shop-note{font-size:.7rem;color:var(--text3);line-height:1.5;max-width:360px}
 
 /* ── Mobile ── */
 @media(max-width:600px){
@@ -312,12 +295,6 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
   .ag{font-size:.68rem;padding:2px 6px}
   .at{gap:3px}
   .sec-hd{padding:12px 0 2px}
-  .prod-grid{gap:10px}
-  .prod-info{padding:10px 12px 14px}
-  .prod-name{font-size:.82rem}
-  .prod-desc{font-size:.72rem}
-  .prod-price{font-size:.86rem}
-  .prod-cta{font-size:.68rem;padding:4px 10px}
 }
 @media(max-width:380px){
   .cd{padding:4px 3px}
@@ -325,7 +302,6 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
   .cd .mp{font-size:.54rem;line-height:1.3}
   .wc{padding:4px 0;max-width:46px}
   .wc .wdt{font-size:.7rem}
-  .prod-grid{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -384,8 +360,9 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
 
     <div class="ft-cta" style="margin-top:32px">
       <div class="ft-cta-title">우리 어린이집 식단도 올리고 싶다면?</div>
-      <div class="ft-cta-desc">어린이집 이름과 식단표 파일만 보내주세요. 확인 후 등록해드려요.</div>
-      <a class="ft-cta-btn" href="https://tally.so/r/68RWPB" id="applyLink" target="_blank">신청하기</a>
+      <div class="ft-cta-desc">오픈카톡방으로 어린이집 이름과 식단표 파일을 보내주세요. 확인 후 등록해드려요.</div>
+      <!-- 임시: Tally 폼(https://tally.so/r/68RWPB) 대신 오픈카톡방 연결 (2026-08-04) -->
+      <a class="ft-cta-btn" href="https://open.kakao.com/o/gxguv9mi" id="applyLink" target="_blank" rel="noopener">카톡으로 신청하기</a>
     </div>
   </div>
   <div class="sp-bottom">
@@ -412,23 +389,14 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
   </div>
 </div>
 
-<!-- PRODUCTS (hidden, kept for data) -->
-<div class="tc" id="t-p" style="display:none">
-  <div class="prod-header">
-    <h2>엄마들이 추천하는 유아식 재료</h2>
-    <p>식단표 메뉴를 집에서도 만들어보세요. 검증된 제품만 골라 소개합니다.</p>
-  </div>
-  <div class="prod-tags" id="prodTags"></div>
-  <div class="prod-grid" id="prodGrid"></div>
-  <div class="prod-disclaimer">
-    이 페이지의 링크를 통해 구매하시면 소정의 수수료를 받을 수 있습니다. 제품 추천은 에디터가 직접 사용해보고 선정했습니다.
-  </div>
-</div>
-
 <!-- FOOTER -->
 <footer class="site-footer">
   <div class="ft-bottom">
     <div class="ft-brand">매일아침</div>
+    <div class="ft-shop">
+      <a class="ft-shop-link" href="https://influencers.coupang.com/s/yirul" target="_blank" rel="noopener">알레르기 대체 제품 추천 &#8594;</a>
+      <div class="ft-shop-note">실제로 제가 사용하는 제품들을 모아두었어요.<br>쿠팡 파트너스 링크로, 구매 시 소정의 수수료를 받습니다.</div>
+    </div>
     <div class="ft-story">알레르기가 있는 아기를 키우는 엄마가 만들었어요.<br>매일 아침 보다 건강하고 안전한 하루를 계획해요.</div>
     <div class="ft-links">
       <a href="#" id="aboutLink">서비스 소개</a>
@@ -446,7 +414,6 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
 const AN={1:"난류(계란)",2:"우유",3:"메밀",4:"땅콩",5:"대두",6:"밀",7:"고등어",8:"게",9:"새우",10:"돼지고기",11:"복숭아",12:"토마토",13:"아황산류",14:"호두",15:"닭고기",16:"쇠고기",17:"오징어",18:"조개류",19:"잣"};
 const dk=['일','월','화','수','목','금','토'];
 let centers=[];
-let products=[];
 let D={};     // menu data
 let wks=[];   // weeks array
 let wI=0;
@@ -456,7 +423,6 @@ let currentMonth='';
 let dataLoaded=false;
 let hideSat=false; // 토요일 숨기기
 let ageGroup='infant'; // infant(영아반) or toddler(유아반)
-let currentProdTag='전체';
 
 // 지역별 가용 연령반 매핑
 const REGION_AGE={
@@ -546,17 +512,6 @@ async function init(){
     regionSel.value=saved.regionId;
     await onRegionChange();
   }
-
-  // Load products
-  try{
-    const res=await fetch('data/products.json');
-    if(!res.ok)throw new Error('fetch failed');
-    products=await res.json();
-  }catch(e){
-    if(typeof EMBEDDED_PRODUCTS!=='undefined')products=EMBEDDED_PRODUCTS;
-    else products=[];
-  }
-  buildProducts();
 
   updateSummary();
   updateFilterBar();
@@ -770,7 +725,7 @@ async function loadMenuData(){
     updateSummary();
   }catch(e){
     D={};wks=[];dataLoaded=false;
-    document.getElementById('calWrap').innerHTML='<div class="td-onboard"><div class="td-onboard-title">식단을 불러오지 못했어요</div><div class="td-onboard-desc">잠시 후 다시 시도하거나,<br>설정에서 다른 어린이집을 선택해보세요.</div><button class="td-onboard-btn" onclick="toggleSettings()">설정하기</button></div>';
+    document.getElementById('calWrap').innerHTML='<div class="td-onboard"><div class="td-onboard-title">식단을 불러오지 못했어요</div><div class="td-onboard-desc">잠시 후 다시 시도하거나,<br>설정에서 다른 지역을 선택해보세요.</div><button class="td-onboard-btn" onclick="toggleSettings()">설정하기</button></div>';
   }
 }
 
@@ -897,7 +852,7 @@ function updateSummary(){
   let html='';
   const ageName=ageGroup==='infant'?'영아반':'유아반';
   if(center)html+=`<strong>${center.name}</strong> · ${ageName}`;
-  else html+='<strong>어린이집을 선택하세요</strong>';
+  else html+='<strong>지역을 선택하세요</strong>';
   if(F.size){
     html+=`<br>알레르기 ${F.size}종 필터링 중`;
     html+='<div class="al-tags">';
@@ -934,7 +889,7 @@ function sw(t){
   if(t==='w')rw();
   if(t==='m'){
     if(dataLoaded){af();}
-    else{document.getElementById('calWrap').innerHTML=`<div class="td-onboard"><div class="td-onboard-title">어린이집을 선택해주세요</div><div class="td-onboard-desc">설정에서 어린이집을 선택하면<br>월간 식단을 한눈에 볼 수 있어요.</div><button class="td-onboard-btn" onclick="toggleSettings()">설정하기</button></div>`;}
+    else{document.getElementById('calWrap').innerHTML=`<div class="td-onboard"><div class="td-onboard-title">지역을 선택해주세요</div><div class="td-onboard-desc">설정에서 지역을 선택하면<br>월간 식단을 한눈에 볼 수 있어요</div><button class="td-onboard-btn" onclick="toggleSettings()">설정하기</button></div>`;}
   }
 }
 
@@ -1012,8 +967,8 @@ function rw(){
   const wp=document.getElementById('wP');
   if(!dataLoaded||!currentCenter){
     row.innerHTML=`<div class="td-onboard">
-      <div class="td-onboard-title">어린이집을 선택해주세요</div>
-      <div class="td-onboard-desc">설정에서 어린이집과 알레르기를 선택하면<br>매일 아침 식단을 바로 확인할 수 있어요.</div>
+      <div class="td-onboard-title">지역을 선택해주세요</div>
+      <div class="td-onboard-desc">설정에서 지역을 선택하면<br>월간 식단을 한눈에 볼 수 있어요</div>
       <button class="td-onboard-btn" onclick="toggleSettings()">설정하기</button>
     </div>`;
     wp.classList.remove('sh');
@@ -1266,46 +1221,6 @@ function resetAll(){
 
 
 // (Today carousel removed — integrated into weekly detail panel)
-
-// ── Products ──
-function buildProducts(){
-  // Build tag filters
-  const tags=new Set(['전체']);
-  products.forEach(p=>{if(p.tag)tags.add(p.tag);});
-  const tagWrap=document.getElementById('prodTags');
-  tagWrap.innerHTML='';
-  tags.forEach(tag=>{
-    const el=document.createElement('span');
-    el.className='prod-tag'+(tag===currentProdTag?' on':'');
-    el.textContent=tag;
-    el.onclick=()=>{currentProdTag=tag;buildProducts();};
-    tagWrap.appendChild(el);
-  });
-
-  // Build product grid
-  const grid=document.getElementById('prodGrid');
-  const filtered=currentProdTag==='전체'?products:products.filter(p=>p.tag===currentProdTag);
-
-  if(!filtered.length){
-    grid.innerHTML='<div class="prod-empty">등록된 추천 상품이 없습니다.</div>';
-    return;
-  }
-
-  grid.innerHTML=filtered.map(p=>`
-    <a class="prod-card" href="${esc(p.url)}" target="_blank" rel="noopener noreferrer">
-      <img class="prod-img" src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" onerror="this.style.display='none'">
-      <div class="prod-info">
-        <div class="prod-badge">${esc(p.tag||'추천')}</div>
-        <div class="prod-name">${esc(p.name)}</div>
-        <div class="prod-desc">${esc(p.desc)}</div>
-        <div class="prod-bottom">
-          <span class="prod-price">${esc(p.price)}</span>
-          <span class="prod-cta">구매하기 &#8250;</span>
-        </div>
-      </div>
-    </a>
-  `).join('');
-}
 
 // ── Swipe navigation on detail panel ──
 function initSwipe(){
