@@ -23,6 +23,11 @@
 - 같은 `region_id/YYYY-MM` 키가 충돌하면 새 데이터가 덮어씀.
 - 처음부터 다시 빌드하려면 `python3 scripts/build.py --clean` (기존 index.html 무시).
 
+## 원본 보정 (패치 JSON)
+- 파싱 결과를 손으로 고칠 땐 `uploads/{YYYYMM}_{지역}_{연령}_{유형}_패치.json`. 연산: `replace`(이름) / `remove` / `add` / **`allergy`(번호만 병합, 이름·레시피 보존)**.
+- 패치는 세 입력 경로(수동 JSON·HWP·PDF) 전부에서 적용된다(`_apply_patches`). 파일 안에 `_근거`를 남겨 왜 고쳤는지 추적 가능하게 할 것.
+- **알레르기 판단 기준: 조리지시서 식재료에 근거가 있으면 식단표 원본이 미표기여도 보강한다** (룰 지시 2026-08-03). 안전 > 원본 충실. 근거 없는 추정으로는 넣지 않는다.
+
 ## 입력 형식 우선순위
 1. **PDF (강력 권장)** — 텍스트 레이어가 있어 `pdfplumber`로 거의 100% 정확 파싱. `parse_pdf.py`·`parse_table.py`가 처리.
 2. **HWP** — `parse_hwp.py`(pyhwp→HTML→병합셀 그리드 파싱). `.hwp` 식단표를 규칙 파일명으로 uploads에 넣으면 build가 자동 처리. **병합셀(colspan/rowspan) 때문에 순서 인덱스 매핑 금지 — 반드시 그리드 좌표로.** (창원시 등)
