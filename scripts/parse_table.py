@@ -28,6 +28,7 @@ from parse_common import (
     extract_allergy_inline,
     clean_menu_name,
     build_output_json,
+    is_recipe_bleed,
     DECO_CHARS,
     CIRCLED_PATTERN,
 )
@@ -1089,6 +1090,7 @@ def parse_recipe_pdf(pdf_path: str) -> dict:
         {"메뉴명": "조리방법 텍스트", ...}
     """
     recipes = {}
+    prev_text = ''
 
     with pdfplumber.open(pdf_path) as pdf:
         for page in pdf.pages:
@@ -1099,6 +1101,11 @@ def parse_recipe_pdf(pdf_path: str) -> dict:
                         continue
                     food_name = str(row[2] or '').strip()
                     recipe_text = str(row[5] or '').strip()
+                    # 위 행의 여러 줄 셀이 밀려 내려온 것이면 버린다
+                    # (깍두기 주의사항 둘째 줄이 아래 우유 행에 얹히던 사례)
+                    if is_recipe_bleed(recipe_text, prev_text):
+                        recipe_text = ''
+                    prev_text = str(row[5] or '').strip()
 
                     if not food_name or food_name in ('음식명', ''):
                         continue

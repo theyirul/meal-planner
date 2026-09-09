@@ -119,8 +119,24 @@ def build_weeks(year: int, month: int) -> list[list]:
     return weeks
 
 
+def is_recipe_bleed(recipe: str, prev_recipe: str) -> bool:
+    """pdfplumber가 위 행의 여러 줄 조리방법 셀을 아래 행에 한 번 더 얹은 경우.
+
+    예) 깍두기 주의사항 2줄 중 둘째 줄('- 1cm 이하 크기로…')이 바로 아래
+    우유(200ml) 행의 조리방법으로 잡힌다. 남의 조리법이 붙는 것이므로 버린다.
+    """
+    if not recipe or not prev_recipe or recipe.strip() == prev_recipe.strip():
+        return False
+    lines = [ln.strip() for ln in prev_recipe.split('\n') if ln.strip()]
+    return len(lines) > 1 and recipe.strip() in lines[1:]
+
+
 def build_output_json(year: int, month: int, menus: dict, recipes: dict | None = None) -> dict:
-    """표준 JSON 출력 포맷 생성"""
+    """표준 JSON 출력 포맷 생성.
+
+    항목에 이미 recipe가 실려 있으면 그것을 쓴다(같은 행에서 뽑아온 조리법 —
+    이름 매칭보다 정확하다). 없을 때만 recipes 사전으로 이름 매칭한다.
+    """
     recipes = recipes or {}
     matched = 0
     total = 0
@@ -130,7 +146,7 @@ def build_output_json(year: int, month: int, menus: dict, recipes: dict | None =
         js_items = []
         for item in items:
             name = item['name']
-            recipe = match_recipe(name, recipes)
+            recipe = (item.get('recipe') or '').strip() or match_recipe(name, recipes)
             if recipe:
                 matched += 1
             total += 1
@@ -162,12 +178,22 @@ def normalize_menu_name(name: str) -> str:
     """메뉴/레시피명을 핵심 음식명으로 정규화.
     괄호와 그 안 내용("(온)", "(고춧가루제외)"), 알레르기 원문자, 공백 제거."""
     s = re.sub(r'[\(\（][^\)\）]*[\)\）]', '', name)
-    s = ''.join(ch for ch in s if ch not in _ALLERGY_MARKS).replace(' ', '').strip()
+    s = _strip_marks(s)
     if not s:
         # 괄호가 메뉴명 전체를 감싼 대체메뉴("(순두부백탕)"): 괄호만 벗기고 내용 유지
-        s = re.sub(r'[\(\)\（\）]', '', name)
-        s = ''.join(ch for ch in s if ch not in _ALLERGY_MARKS).replace(' ', '').strip()
+        s = _strip_marks(re.sub(r'[\(\)\（\）]', '', name))
     return s
+
+
+def _strip_marks(s: str) -> str:
+    """알레르기 원문자와 모든 공백(줄바꿈 포함) 제거.
+
+    줄바꿈까지 지우는 이유: 조리법 표의 좁은 셀은 이름이 줄바꿈된다.
+    '소고기곤드레밥\\n+양념장'이 식단표의 '소고기곤드레밥+양념장'과 안 맞아
+    조리법이 통째로 누락되던 사례가 있었다(2026-08 동대문).
+    """
+    s = ''.join(ch for ch in s if ch not in _ALLERGY_MARKS)
+    return re.sub(r'\s+', '', s).strip()
 
 
 def match_recipe(menu_name: str, recipes: dict) -> str:
