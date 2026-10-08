@@ -6,7 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 ALLOWED_ORIGINS = "https://theyirul.github.io,http://localhost:8000"
 MONTHLY_LIMIT = "100"
-DAILY_PER_IP = "20" # 시험 기간 임시 상향(2026-10-08). 공개 전 6으로 되돌릴 것
+DAILY_PER_IP = "6"
 
 # 사용 상한 카운터
 [[kv_namespaces]]
