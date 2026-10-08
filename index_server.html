@@ -1468,9 +1468,9 @@ document.addEventListener('DOMContentLoaded',()=>{
     const ul=$u('upFiles');ul.innerHTML='';
     upFiles.forEach(f=>{
       const li=document.createElement('li');
-      const bad=/\.(hwp|hwpx)$/i.test(f.name);
+      const bad=/\.hwpx$/i.test(f.name);
       li.className=bad?'bad':'';
-      li.textContent=bad?`${f.name} — 한글 파일은 PDF로 저장해서 올려 주세요`:f.name;
+      li.textContent=bad?`${f.name} — 새 한글 형식(HWPX)은 아직 못 읽어요. HWP나 PDF로 저장해서 올려 주세요`:f.name;
       ul.appendChild(li);
     });
     $u('upDrop').textContent=upFiles.length?'다른 파일 고르기':'파일 고르기';
