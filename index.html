@@ -376,7 +376,6 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
       <select class="st-select" id="regionSel" onchange="onRegionChange()">
         <option value="">지역을 선택하세요</option>
       </select>
-      <button class="up-more" type="button" id="regionMore" hidden onclick="showAllRegions()">다른 지역 식단 보기</button>
     </div>
     <div class="st-section" id="monthSection" style="display:none">
       <div class="st-label">월 선택</div>
@@ -579,7 +578,7 @@ async function init(){
   populateRegions(saved.regionId);
 
   // Restore saved region (onRegionChange will also restore monthKey)
-  if(saved.regionId){
+  if(saved.regionId&&[...regionSel.options].some(o=>o.value===saved.regionId)){
     regionSel.value=saved.regionId;
     await onRegionChange();
   }else if(regionSel.value){
@@ -593,18 +592,14 @@ async function init(){
 }
 
 // ── 지역 드롭다운 — 이번 달 업데이트된 지역 우선 ──
-// 이 기기에 올린 "내 식단"이 있으면 그것만 보여주고, 센터 지역 목록은 접어 둔다.
-// keep: 지금(또는 저장된) 선택값 — 센터 지역을 쓰고 있던 사람은 전체 목록을 그대로 본다
-let regionShowAll=false;
-function showAllRegions(){regionShowAll=true;const v=document.getElementById('regionSel').value;populateRegions(v);document.getElementById('regionSel').value=v;}
+// 이 기기에 올린 "내 식단"이 있으면 그것만 보여준다. 센터 지역 목록은 아직 안 올린 사람용
 function populateRegions(keep){
   const regionSel=document.getElementById('regionSel');
   const MINE_RE='내 식단 · ';
   const hasMine=centers.some(c=>c.region.startsWith(MINE_RE));
-  const onlyMine=hasMine&&!regionShowAll&&!(keep&&!keep.startsWith(MINE_RE));
+  const onlyMine=hasMine; // 내 식단을 올린 사람은 내 것만 본다(센터 식단은 아직 안 올린 사람용)
   document.getElementById('regionLabel').textContent=onlyMine?'우리 식단':'센터 식단 보기';
   document.getElementById('regionDesc').hidden=onlyMine;
-  document.getElementById('regionMore').hidden=!onlyMine;
   const _now=new Date();
   const _curKey=`${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}`;
   const regionInfo={};
@@ -1808,7 +1803,6 @@ async function saveUpload(){
   m.data[`${c.id}/${r.mk}`]={year:r.year,month:r.month,menus,allergens:AN,source:'upload',savedAt:new Date().toISOString()};
   mineSave(m);
   centers=centers.filter(x=>!x.id.startsWith(MINE_PREFIX)).concat(m.centers);
-  regionShowAll=false;
   populateRegions(c.region);
   const sel=document.getElementById('regionSel');
   sel.value=c.region;
