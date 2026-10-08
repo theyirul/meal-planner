@@ -131,6 +131,19 @@ def is_recipe_bleed(recipe: str, prev_recipe: str) -> bool:
     return len(lines) > 1 and recipe.strip() in lines[1:]
 
 
+def strip_stray_allergy(recipe: str) -> str:
+    """조리방법 셀 맨 앞의 '원문자만 있는 줄'을 버린다.
+
+    예) 위 행 메모 '*스프가루 사용시 알레르기번호 작성(①②⑤⑥⑮⑯)'가 줄바꿈되면
+    마지막 '⑯'이 아래 단감 행 조리방법 칸에 '⑯\\n-'로 잡힌다(2026-10 동대문).
+    원문자 단계 번호는 항상 문장이 뒤따르므로 원문자만 있는 줄은 조리법이 아니다.
+    """
+    lines = (recipe or '').split('\n')
+    while lines and lines[0].strip() and re.fullmatch(r'[①-⑳\s]+', lines[0]):
+        lines.pop(0)
+    return '\n'.join(lines).strip()
+
+
 def build_output_json(year: int, month: int, menus: dict, recipes: dict | None = None) -> dict:
     """표준 JSON 출력 포맷 생성.
 

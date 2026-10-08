@@ -21,7 +21,7 @@ from pathlib import Path
 import pdfplumber
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from parse_common import is_recipe_bleed
+from parse_common import is_recipe_bleed, strip_stray_allergy
 
 CIRCLED = {chr(0x2460 + i): i + 1 for i in range(20)}  # ①..⑳
 CIRCLED_RE = re.compile('[' + ''.join(CIRCLED) + ']')
@@ -41,7 +41,7 @@ def split_name(cell: str):
 
 def split_recipe(cell: str, prev_cell: str) -> str:
     """조리방법 칸 정리. 원본이 '-'면 조리법 없음, 위 행에서 밀려온 것도 버린다."""
-    rec = (cell or '').replace('_x000D_', '').strip()
+    rec = strip_stray_allergy((cell or '').replace('_x000D_', '').strip())
     if rec in ('', '-', 'None'):
         return ''
     if is_recipe_bleed(rec, prev_cell):

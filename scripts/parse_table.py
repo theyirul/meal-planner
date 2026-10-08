@@ -24,6 +24,7 @@ from pathlib import Path
 import pdfplumber
 
 from parse_common import (
+    strip_stray_allergy,
     extract_allergy_circled,
     extract_allergy_inline,
     clean_menu_name,
@@ -1100,7 +1101,7 @@ def parse_recipe_pdf(pdf_path: str) -> dict:
                     if not row or len(row) < 6:
                         continue
                     food_name = str(row[2] or '').strip()
-                    recipe_text = str(row[5] or '').strip()
+                    recipe_text = strip_stray_allergy(str(row[5] or '').strip())
                     # 위 행의 여러 줄 셀이 밀려 내려온 것이면 버린다
                     # (깍두기 주의사항 둘째 줄이 아래 우유 행에 얹히던 사례)
                     if is_recipe_bleed(recipe_text, prev_text):
