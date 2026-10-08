@@ -252,6 +252,54 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
 .ft-cta-desc{font-size:.82rem;color:var(--text2);margin-bottom:14px;line-height:1.5}
 .ft-cta-btn{display:inline-block;padding:10px 28px;background:var(--brand);color:#fff;border-radius:8px;font-size:.88rem;font-weight:600;text-decoration:none;transition:all .15s;font-family:inherit;border:none;cursor:pointer}
 .ft-cta-btn:active{opacity:.9}
+.up-alt{font-size:.76rem;color:var(--text3);margin-top:12px}
+.up-alt a{color:var(--text2)}
+.up-more[hidden]{display:none}
+.up-more{display:block;margin-top:10px;padding:0;border:0;background:none;font:inherit;font-size:.8rem;color:var(--text2);text-decoration:underline;cursor:pointer}
+
+/* ── Upload panel (식단표 직접 올리기) ── */
+#upPanel{z-index:110}
+.up-input{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:.9rem;font-family:inherit;color:var(--text);background:var(--card);outline:none}
+.up-input:focus{border-color:var(--accent)}
+.up-file-input{position:absolute;width:1px;height:1px;opacity:0}
+.up-drop{display:block;text-align:center;padding:22px 14px;border:1.5px dashed var(--accent-border);border-radius:var(--radius);font-size:.9rem;font-weight:600;color:var(--text2);cursor:pointer;background:#FAFAFA}
+.up-file-input:focus-visible+.up-drop{outline:2px solid var(--accent);outline-offset:2px}
+.up-files,.up-mine,.up-notes{list-style:none;margin-top:8px}
+.up-files li{font-size:.82rem;color:var(--text2);padding:6px 2px;border-bottom:1px solid var(--border-light);word-break:break-all}
+.up-files li.bad{color:var(--alert)}
+.up-mine li{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:.84rem;padding:8px 2px;border-bottom:1px solid var(--border-light)}
+.up-mine button{background:none;border:1px solid var(--border);border-radius:8px;padding:4px 10px;font-size:.76rem;color:var(--text3);font-family:inherit;cursor:pointer}
+.up-err{color:var(--alert);font-size:.84rem;font-weight:600;min-height:1.2em}
+.up-work{text-align:center;padding:64px 12px}
+.up-spin{width:32px;height:32px;margin:0 auto 18px;border:3px solid var(--border);border-top-color:var(--brand);border-radius:50%;animation:upSpin 1s linear infinite}
+@keyframes upSpin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.up-spin{animation:none}}
+.up-work-title{font-size:1rem;font-weight:700;margin-bottom:6px}
+.up-work-desc{font-size:.84rem;color:var(--text2)}
+.up-sum{font-size:.92rem;margin-bottom:14px}
+.up-sum strong{font-weight:700}
+.up-warn{background:var(--alert-bg);border:1px solid var(--alert-light);border-radius:var(--radius);padding:12px 14px;font-size:.84rem;color:var(--text);margin-bottom:14px;line-height:1.55}
+.up-warn b{color:var(--alert)}
+.up-notes li{font-size:.8rem;color:var(--text2);padding:2px 0 2px 12px;position:relative}
+.up-notes li::before{content:'·';position:absolute;left:2px}
+.up-day{margin-top:18px}
+.up-day-h{font-size:.84rem;font-weight:700;color:var(--text);padding-bottom:6px;border-bottom:1px solid var(--border)}
+.up-it{display:block;width:100%;text-align:left;background:none;border:none;border-bottom:1px solid var(--border-light);padding:9px 2px;font-family:inherit;font-size:.88rem;color:var(--text);cursor:pointer}
+.up-it.chk{background:var(--alert-bg)}
+.up-it .sec{font-size:.72rem;color:var(--text3);margin-right:6px}
+.up-it .al{display:inline-flex;flex-wrap:wrap;gap:3px;margin-left:6px;vertical-align:middle}
+.up-it .al span{font-size:.7rem;padding:1px 6px;border-radius:6px;background:var(--border-light);color:var(--text2);font-weight:600}
+.up-it .why{display:block;font-size:.74rem;color:var(--alert);margin-top:2px}
+.up-ed{padding:10px 2px 14px;border-bottom:1px solid var(--border-light)}
+.up-ed .al-grid{margin:10px 0}
+.up-ed-row{display:flex;gap:8px}
+.up-ed-row button{flex:1;padding:9px;border-radius:8px;border:1px solid var(--border);background:var(--card);font-family:inherit;font-size:.82rem;cursor:pointer}
+.up-ed-row .done{background:var(--brand);color:#fff;border-color:var(--brand)}
+.up-src{margin-top:24px;font-size:.8rem;color:var(--text2)}
+.up-src pre{white-space:pre-wrap;word-break:break-all;font-size:.7rem;line-height:1.5;max-height:360px;overflow:auto;background:#FAFAFA;padding:10px;border-radius:8px;margin-top:8px}
+.up-confirm{display:flex;align-items:flex-start;gap:8px;font-size:.84rem;color:var(--text);margin-bottom:10px;cursor:pointer}
+.up-confirm input{width:18px;height:18px;margin-top:2px;accent-color:var(--brand)}
+.st-save-btn:disabled{background:var(--border);color:var(--text3);cursor:not-allowed}
 .ft-bottom{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
 .ft-brand{font-size:.92rem;font-weight:700;color:var(--text);letter-spacing:-.01em}
 .ft-story{font-size:.82rem;color:var(--text2);line-height:1.6}
@@ -323,18 +371,12 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
   <div class="sp-scroll">
     <div class="sp-header"><h2>설정</h2><button class="sp-close" onclick="closeSettings()">✕</button></div>
     <div class="st-section">
-      <div class="st-label">지역 선택</div>
-      <div class="st-desc">어린이사회복지 급식관리지원센터 식단 데이터를 기반으로 합니다.</div>
+      <div class="st-label" id="regionLabel">센터 식단 보기</div>
+      <div class="st-desc" id="regionDesc">어린이사회복지 급식관리지원센터 식단 데이터를 기반으로 합니다.</div>
       <select class="st-select" id="regionSel" onchange="onRegionChange()">
         <option value="">지역을 선택하세요</option>
       </select>
-    </div>
-    <div class="st-section" id="ageSection">
-      <div class="st-label">우리 아이 반</div>
-      <div class="age-toggle">
-        <button class="age-btn on" data-age="infant" onclick="setAgeGroup('infant')">영아반<span class="age-sub">만 0-2세</span></button>
-        <button class="age-btn" data-age="toddler" onclick="setAgeGroup('toddler')">유아반<span class="age-sub">만 3-5세</span></button>
-      </div>
+      <button class="up-more" type="button" id="regionMore" hidden onclick="showAllRegions()">다른 지역 식단 보기</button>
     </div>
     <div class="st-section" id="monthSection" style="display:none">
       <div class="st-label">월 선택</div>
@@ -360,15 +402,66 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
 
     <button class="st-reset-btn" id="resetBtn" onclick="resetAll()">설정 초기화</button>
 
-    <div class="ft-cta" style="margin-top:32px">
-      <div class="ft-cta-title">우리 어린이집 식단도 올리고 싶다면?</div>
-      <div class="ft-cta-desc">오픈카톡방으로 어린이집 이름과 식단표 파일을 보내주세요. 확인 후 등록해드려요.</div>
+    <div class="ft-cta" id="upCta" style="margin-top:32px">
+      <div class="ft-cta-title">우리 어린이집 식단표 직접 올리기</div>
+      <div class="ft-cta-desc">어린이집에서 받은 PDF나 엑셀 파일을 올려주세요.<br>AI와 함께 메뉴와 알레르기를 정리할 수 있어요.<br><br>원본과 한 번 맞춰보고 수정하거나 저장해 사용하세요.</div>
+      <button class="ft-cta-btn" type="button" onclick="openUpload()">식단표 올리기</button>
       <!-- 임시: Tally 폼(https://tally.so/r/68RWPB) 대신 오픈카톡방 연결 (2026-08-04) -->
-      <a class="ft-cta-btn" href="https://open.kakao.com/o/gxguv9mi" id="applyLink" target="_blank" rel="noopener">카톡으로 신청하기</a>
+      <div class="up-alt">잘 안 되면 <a href="https://open.kakao.com/o/gxguv9mi" id="applyLink" target="_blank" rel="noopener">카톡으로 보내주세요</a></div>
     </div>
   </div>
   <div class="sp-bottom">
     <button class="st-save-btn" id="saveBtn" onclick="saveAndClose()">저장하고 닫기</button>
+  </div>
+</div>
+
+<!-- UPLOAD PANEL (overlay) — 부모가 직접 식단표를 올린다. 결과는 이 기기에만 저장 -->
+<div class="settings-panel" id="upPanel" role="dialog" aria-modal="true" aria-labelledby="upTitle">
+  <div class="sp-scroll" id="upScroll">
+    <div class="sp-header"><h2 id="upTitle">식단표 올리기</h2><button class="sp-close" type="button" aria-label="닫기" onclick="closeUpload()">✕</button></div>
+
+    <!-- A. 파일 고르기 -->
+    <div id="upPick">
+      <div class="st-section">
+        <div class="st-label">식단표 파일</div>
+        <div class="st-desc">PDF, 한글(HWP), 엑셀(xlsx), CSV를 올릴 수 있어요. 식단표와 조리법이 따로 있으면 함께 고르세요.<br>올린 식단은 이 휴대폰에만 저장돼요. 다른 사람에게는 보이지 않아요.</div>
+        <input id="upFile" type="file" multiple accept=".pdf,.hwp,.xlsx,.xls,.csv,.txt,application/pdf" class="up-file-input">
+        <label for="upFile" class="up-drop" id="upDrop">파일 고르기</label>
+        <ul class="up-files" id="upFiles"></ul>
+      </div>
+      <div class="st-section" id="upMineSec" hidden>
+        <div class="st-label">이 기기에 올린 식단</div>
+        <ul class="up-mine" id="upMine"></ul>
+      </div>
+      <p class="up-err" id="upErr" role="alert"></p>
+    </div>
+
+    <!-- B. 읽는 중 -->
+    <div id="upWork" hidden>
+      <div class="up-work">
+        <div class="up-spin" aria-hidden="true"></div>
+        <div class="up-work-title" id="upWorkTitle">파일을 읽고 있어요</div>
+        <div class="up-work-desc" id="upWorkDesc" aria-live="polite">한 달치면 1~3분 걸려요. 화면을 닫지 말아 주세요.</div>
+      </div>
+    </div>
+
+    <!-- C. 확인 -->
+    <div id="upReview" hidden>
+      <div class="up-sum" id="upSum"></div>
+      <div class="up-warn" id="upWarn" hidden></div>
+      <ul class="up-notes" id="upNotes"></ul>
+      <div class="up-days" id="upDays"></div>
+      <div class="st-section up-saveto">
+        <label class="st-label" for="upSaveTo">저장할 이름</label>
+        <select class="st-select" id="upSaveTo" onchange="$u('upNewName').hidden=this.value!==''"></select>
+        <input class="up-input" id="upNewName" type="text" maxlength="30" autocomplete="off" aria-label="새 식단 이름">
+        <div class="st-desc" style="margin-top:6px">다음 달 식단도 같은 이름으로 저장하면 이어서 쌓여요.</div>
+      </div>
+      <details class="up-src"><summary>AI가 읽은 원본 글자 보기</summary><pre id="upSrc"></pre></details>
+    </div>
+  </div>
+  <div class="sp-bottom" id="upBottom">
+    <button class="st-save-btn" type="button" id="upGo" onclick="startUpload()">AI로 읽기</button>
   </div>
 </div>
 
@@ -486,13 +579,42 @@ async function init(){
     if(typeof EMBEDDED_CENTERS!=='undefined')centers=EMBEDDED_CENTERS;
     else centers=[];
   }
+  centers=centers.concat(mineCenters()); // 부모가 이 기기에 직접 올린 식단
 
-  // Populate region dropdown — 이번 달 업데이트된 지역 우선 + [New] 표시
+  populateRegions(saved.regionId);
+
+  // Restore saved region (onRegionChange will also restore monthKey)
+  if(saved.regionId){
+    regionSel.value=saved.regionId;
+    await onRegionChange();
+  }else if(regionSel.value){
+    await onRegionChange(); // 내 식단만 있는 상태: 첫 번째를 바로 연다
+  }
+
+  updateSummary();
+  updateFilterBar();
+  updateTabBadge();
+  placeUploadCta();
+}
+
+// ── 지역 드롭다운 — 이번 달 업데이트된 지역 우선 ──
+// 이 기기에 올린 "내 식단"이 있으면 그것만 보여주고, 센터 지역 목록은 접어 둔다.
+// keep: 지금(또는 저장된) 선택값 — 센터 지역을 쓰고 있던 사람은 전체 목록을 그대로 본다
+let regionShowAll=false;
+function showAllRegions(){regionShowAll=true;const v=document.getElementById('regionSel').value;populateRegions(v);document.getElementById('regionSel').value=v;}
+function populateRegions(keep){
   const regionSel=document.getElementById('regionSel');
+  const MINE_RE='내 식단 · ';
+  const hasMine=centers.some(c=>c.region.startsWith(MINE_RE));
+  const onlyMine=hasMine&&!regionShowAll&&!(keep&&!keep.startsWith(MINE_RE));
+  document.getElementById('regionLabel').textContent=onlyMine?'우리 식단':'센터 식단 보기';
+  document.getElementById('regionDesc').hidden=onlyMine;
+  document.getElementById('regionMore').hidden=!onlyMine;
   const _now=new Date();
   const _curKey=`${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}`;
   const regionInfo={};
   centers.forEach(c=>{
+    if(onlyMine&&!c.region.startsWith(MINE_RE))return;
     const isNew=Array.isArray(c.months)&&c.months.includes(_curKey);
     if(!(c.region in regionInfo)||isNew)regionInfo[c.region]={isNew};
   });
@@ -501,23 +623,14 @@ async function init(){
     if(na!==nb)return na?-1:1;       // 업데이트된 지역을 위로
     return a.localeCompare(b,'ko');  // 그 안에서는 가나다순
   });
-  regionSel.innerHTML='<option value="">지역을 선택하세요</option>';
+  regionSel.innerHTML=onlyMine?'':'<option value="">지역을 선택하세요</option>';
   regions.forEach(r=>{
     const o=document.createElement('option');
     o.value=r;
-    o.textContent=regionInfo[r].isNew?`${r} ✨`:r;
+    o.textContent=r;
     regionSel.appendChild(o);
   });
 
-  // Restore saved region (onRegionChange will also restore monthKey)
-  if(saved.regionId){
-    regionSel.value=saved.regionId;
-    await onRegionChange();
-  }
-
-  updateSummary();
-  updateFilterBar();
-  updateTabBadge();
 }
 
 // ── Allergy grid (settings) ──
@@ -640,6 +753,7 @@ async function onMonthChange(){
 }
 
 async function _fetchMonthData(center,monthKey){
+  if(center.startsWith(MINE_PREFIX))return mineLoad().data[`${center}/${monthKey}`]||null;
   try{
     const res=await fetch(`data/${center}/${monthKey}.json`);
     if(!res.ok)throw new Error('fetch failed');
@@ -852,8 +966,7 @@ function updateSummary(){
   if(!currentCenter&&!F.size){el.style.display='none';return;}
   el.style.display='block';
   let html='';
-  const ageName=ageGroup==='infant'?'영아반':'유아반';
-  if(center)html+=`<strong>${center.name}</strong> · ${ageName}`;
+  if(center)html+=`<strong>${center.name}</strong>`;
   else html+='<strong>지역을 선택하세요</strong>';
   if(F.size){
     html+=`<br>알레르기 ${F.size}종 필터링 중`;
@@ -898,7 +1011,16 @@ function sw(t){
 // ── Settings panel ──
 function toggleSettings(){
   const p=document.getElementById('settingsPanel');
+  if(!p.classList.contains('open'))placeUploadCta();
   p.classList.toggle('open');
+}
+// 아직 아무 식단도 고르지 않은 사람에겐 "식단표 올리기"를 맨 위에 둔다 — 지역부터 골라야 하는 줄 알고 멈추지 않게.
+// 패널이 열려 있는 동안엔 옮기지 않는다(누르려던 자리가 사라지지 않게)
+function placeUploadCta(){
+  const cta=document.getElementById('upCta'),head=document.querySelector('#settingsPanel .sp-header');
+  const fresh=!document.getElementById('regionSel').value;
+  if(fresh){head.after(cta);cta.style.margin='0 0 28px';}
+  else{document.getElementById('resetBtn').after(cta);cta.style.margin='32px 0 0';}
 }
 function closeSettings(){
   document.getElementById('settingsPanel').classList.remove('open');
@@ -1268,6 +1390,392 @@ document.addEventListener('DOMContentLoaded',async()=>{
   await init();
   initSwipe();
 });
+</script>
+
+<script>
+// ── 식단표 직접 올리기 ──
+// 파일은 이 브라우저에서 글자로만 바꿔 보낸다(원본 파일은 서버로 안 감).
+// Cloudflare Worker(worker/)가 Claude로 구조화해 돌려주고, 부모가 원본과 대조한 뒤 이 기기 localStorage에 저장한다.
+const PARSE_URL='https://meal-planner-parse.mulggo.workers.dev/parse';
+const PDFJS='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs';
+const PDFJS_WORKER='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';
+const XLSX_JS='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+const MINE_KEY='meal-planner-mine';
+const MINE_PREFIX='mine-';
+const SEC_ORDER=['오전간식','점심','오후간식'];
+
+function mineLoad(){
+  try{const s=JSON.parse(localStorage.getItem(MINE_KEY)||'{}');return{centers:s.centers||[],data:s.data||{}};}catch(e){return{centers:[],data:{}};}
+}
+function mineSave(m){localStorage.setItem(MINE_KEY,JSON.stringify(m));}
+function mineCenters(){return mineLoad().centers;}
+
+let upFiles=[],upText='',upResult=null,upAbort=null,upOpenIdx=-1;
+const $u=id=>document.getElementById(id);
+
+function upStep(step){
+  $u('upPick').hidden=step!=='pick';
+  $u('upWork').hidden=step!=='work';
+  $u('upReview').hidden=step!=='review';
+  const b=$u('upBottom');
+  if(step==='pick'){b.innerHTML='<button class="st-save-btn" type="button" id="upGo" onclick="startUpload()">AI로 읽기</button>';}
+  else if(step==='work'){b.innerHTML='<button class="st-reset-btn" type="button" style="margin-top:0" onclick="cancelUpload()">취소</button>';}
+  else{
+    b.innerHTML='<label class="up-confirm"><input type="checkbox" id="upOk" onchange="document.getElementById(\'upSave\').disabled=!this.checked"> 원본 식단표와 알레르기 번호를 대조했어요. 틀린 곳은 눌러서 고쳤어요.</label>'+
+      '<button class="st-save-btn" type="button" id="upSave" disabled onclick="saveUpload()">이 식단 쓰기</button>'+
+      '<button class="st-reset-btn" type="button" onclick="upStep(\'pick\')">다시 올리기</button>';
+  }
+  $u('upScroll').scrollTop=0;
+}
+
+function openUpload(){
+  $u('upPanel').classList.add('open');
+  $u('upErr').textContent='';
+  renderMine();
+  upStep('pick');
+}
+function closeUpload(){
+  if(upAbort)upAbort.abort();
+  $u('upPanel').classList.remove('open');
+}
+
+function renderMine(){
+  const m=mineLoad(),ul=$u('upMine');
+  $u('upMineSec').hidden=!m.centers.length;
+  ul.innerHTML='';
+  m.centers.forEach(c=>{
+    const li=document.createElement('li');
+    const t=document.createElement('span');
+    t.textContent=`${c.name} · ${c.months.map(x=>+x.split('-')[1]+'월').join(', ')}`;
+    const b=document.createElement('button');b.type='button';b.textContent='지우기';
+    b.onclick=()=>{
+      if(!confirm(`${c.name} 식단을 이 기기에서 지울까요?`))return;
+      const mm=mineLoad();
+      mm.centers=mm.centers.filter(x=>x.id!==c.id);
+      Object.keys(mm.data).forEach(k=>{if(k.startsWith(c.id+'/'))delete mm.data[k];});
+      mineSave(mm);
+      centers=centers.filter(x=>x.id!==c.id);
+      populateRegions();
+      renderMine();
+    };
+    li.appendChild(t);li.appendChild(b);ul.appendChild(li);
+  });
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  $u('upFile').addEventListener('change',e=>{
+    upFiles=[...e.target.files];
+    const ul=$u('upFiles');ul.innerHTML='';
+    upFiles.forEach(f=>{
+      const li=document.createElement('li');
+      const bad=/\.(hwp|hwpx)$/i.test(f.name);
+      li.className=bad?'bad':'';
+      li.textContent=bad?`${f.name} — 한글 파일은 PDF로 저장해서 올려 주세요`:f.name;
+      ul.appendChild(li);
+    });
+    $u('upDrop').textContent=upFiles.length?'다른 파일 고르기':'파일 고르기';
+    $u('upErr').textContent='';
+  });
+});
+
+// ── 파일 → 글자 ──
+let _pdfjs=null;
+async function pdfToText(file){
+  if(!_pdfjs){_pdfjs=await import(PDFJS);_pdfjs.GlobalWorkerOptions.workerSrc=PDFJS_WORKER;}
+  const doc=await _pdfjs.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
+  const out=[];
+  for(let p=1;p<=doc.numPages;p++){
+    const page=await doc.getPage(p);
+    const vp=page.getViewport({scale:1});
+    const tc=await page.getTextContent();
+    const its=tc.items.filter(i=>i.str&&i.str.trim()).map(i=>({s:i.str,x:i.transform[4],y:i.transform[5],w:i.width}));
+    its.sort((a,b)=>b.y-a.y||a.x-b.x);
+    // 같은 높이(±3)를 한 줄로 묶고, 붙어 있는 조각은 한 칸으로 합친다. x 좌표는 AI가 열(날짜)을 가르는 단서
+    const rows=[];
+    for(const it of its){const r=rows.find(r=>Math.abs(r.y-it.y)<3);if(r)r.its.push(it);else rows.push({y:it.y,its:[it]});}
+    out.push(`--- ${file.name} ${p}쪽 (폭 ${Math.round(vp.width)}) ---`);
+    for(const r of rows){
+      r.its.sort((a,b)=>a.x-b.x);
+      const cells=[];
+      // 원문자만 있는 조각(줄바꿈된 알레르기 번호)이 같은 줄의 다른 글자 뒤에 오면 붙이지 않고 [떨어진번호]로 표시한다 — 같은 높이의 다른 메뉴 것으로 읽히면 번호가 조용히 사라진다(동대문 10/7 물만두 ⑯⑱)
+      const lone=s=>/^[\u2460-\u2473\s]+$/.test(s);
+      for(const it of r.its){const c=cells[cells.length-1],l=lone(it.s)&&cells.some(x=>!lone(x.s));if(c&&it.x<=c.end+2&&!l&&!c.lone){c.s+=it.s;c.end=it.x+it.w;}else cells.push({x:it.x,s:it.s,end:it.x+it.w,lone:l});}
+      out.push(cells.map(c=>`[x=${Math.round(c.x)}]${c.lone?'[떨어진번호]':''}${c.s.trim()}`).join(' '));
+    }
+  }
+  return out.join('\n');
+}
+function loadScript(src){return new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=no;document.head.appendChild(s);});}
+async function sheetToText(file){
+  if(!window.XLSX)await loadScript(XLSX_JS);
+  const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
+  return wb.SheetNames.map(n=>{
+    const csv=XLSX.utils.sheet_to_csv(wb.Sheets[n],{blankrows:false}).replace(/^,+$/gm,'').trim();
+    return csv?`--- ${file.name} [${n}] ---\n${csv}`:'';
+  }).filter(Boolean).join('\n');
+}
+// ── 한글(HWP 5.x) → 표 구조를 살린 글자. 서버 없이 브라우저에서 읽는다 ──
+// HWP 5.x 본문 → 표 구조를 살린 글자. 브라우저·node 공용 (CFB 읽기·압축 해제는 호출하는 쪽이 넘겨준다)
+// 레코드: 헤더 4바이트 = tag(10비트) | level(10비트) | size(12비트, 0xFFF면 다음 4바이트가 크기)
+// 병합칸이 많은 식단표는 칸 좌표가 생명이라(창원 HWP 밀림 사고), 칸마다 행·열·병합 범위를 붙여 넘긴다.
+function hwpSectionToText(buf){
+  const dv=new DataView(buf.buffer,buf.byteOffset,buf.byteLength);
+  const TAG_PARA_TEXT=67,TAG_CTRL_HEADER=71,TAG_LIST_HEADER=72;
+  const out=[];const stack=[];let loose=[];
+  const flushLoose=()=>{const t=loose.join(' ').trim();if(t)out.push(t);loose=[];};
+  const paraText=(off,size)=>{
+    let s='';
+    for(let i=0;i+1<size;){
+      const c=dv.getUint16(off+i,true);
+      if(c<32){
+        if(c===10||c===13)s+='\n';
+        else if(c===9)s+=' ';
+        // 1~3,4~9,11~12,14~23은 8글자짜리 컨트롤(표·그림·필드 등), 나머지는 1글자
+        i+=([0,10,13,24,25,26,27,28,29,30,31].includes(c))?2:16;
+        continue;
+      }
+      s+=String.fromCharCode(c);i+=2;
+    }
+    return s;
+  };
+  const endTable=()=>{
+    const t=stack.pop();
+    const lines=[`<표 ${t.no}: ${t.cells.length}칸>`];
+    const rows={};
+    for(const c of t.cells){(rows[c.r]=rows[c.r]||[]).push(c);}
+    for(const r of Object.keys(rows).map(Number).sort((a,b)=>a-b)){
+      const cells=rows[r].sort((a,b)=>a.c-b.c).map(c=>{
+        const col=c.cs>1?`열${c.c+1}~${c.c+c.cs}`:`열${c.c+1}`;
+        const span=c.rs>1?`(행${r+1}~${r+c.rs} 병합)`:'';
+        const txt=c.t.join('\n').trim().replace(/\n+/g,' ⏎ ');
+        return `${col}${span}: ${txt||'(빈칸)'}`;
+      });
+      lines.push(`행${r+1} | `+cells.join(' | '));
+    }
+    lines.push(`</표 ${t.no}>`);
+    if(stack.length){const p=stack[stack.length-1];p.cur&&p.cur.t.push(lines.join('\n'));}
+    else{flushLoose();out.push(lines.join('\n'));}
+  };
+  let tableNo=0;
+  for(let off=0;off+4<=buf.length;){
+    const h=dv.getUint32(off,true);off+=4;
+    const tag=h&0x3ff,level=(h>>>10)&0x3ff;let size=h>>>20;
+    if(size===0xfff){size=dv.getUint32(off,true);off+=4;}
+    // 표가 끝났는지: 표 머리보다 얕거나 같은 레벨의 레코드가 나오면 닫는다
+    while(stack.length&&level<=stack[stack.length-1].level)endTable();
+    if(tag===TAG_CTRL_HEADER&&size>=4){
+      const id=String.fromCharCode(buf[off+3],buf[off+2],buf[off+1],buf[off]);
+      if(id==='tbl ')stack.push({level,no:++tableNo,cells:[],cur:null});
+    }else if(tag===TAG_LIST_HEADER&&stack.length&&level===stack[stack.length-1].level+1&&size>=16){
+      const t=stack[stack.length-1];
+      t.cur={c:dv.getUint16(off+8,true),r:dv.getUint16(off+10,true),cs:dv.getUint16(off+12,true)||1,rs:dv.getUint16(off+14,true)||1,t:[]};
+      t.cells.push(t.cur);
+    }else if(tag===TAG_PARA_TEXT){
+      const s=paraText(off,size);
+      if(stack.length){const t=stack[stack.length-1];if(t.cur)t.cur.t.push(s);}
+      else loose.push(s);
+    }
+    off+=size;
+  }
+  while(stack.length)endTable();
+  flushLoose();
+  return out.join('\n');
+}
+// HWP 압축 본문은 끝에 여분 바이트가 붙어 있어, 브라우저 압축 해제기가 본문을 다 푼 뒤 'Junk found' 오류를 낸다 → 받은 만큼 쓴다
+async function inflateRaw(u8){
+  const rd=new Blob([u8]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader();
+  const parts=[];let n=0;
+  try{for(;;){const {value,done}=await rd.read();if(done)break;parts.push(value);n+=value.length;}}
+  catch(e){if(!n)throw e;}
+  const out=new Uint8Array(n);let o=0;for(const x of parts){out.set(x,o);o+=x.length;}
+  return out;
+}
+async function hwpToText(file){
+  if(!window.XLSX)await loadScript(XLSX_JS); // XLSX 안의 CFB로 HWP 상자(OLE)를 연다
+  const cfb=XLSX.CFB.read(new Uint8Array(await file.arrayBuffer()),{type:'array'});
+  const get=p=>{const i=cfb.FullPaths.findIndex(x=>x.endsWith(p));return i<0?null:cfb.FileIndex[i];};
+  const fh=get('/FileHeader');
+  if(!fh)throw{userMsg:'한글 파일을 열지 못했어요. 한글에서 PDF로 저장해서 올려 주세요.'};
+  const flags=new DataView(new Uint8Array(fh.content).buffer).getUint32(36,true);
+  if(flags&2)throw{userMsg:'암호가 걸린 한글 파일이에요. 암호를 풀거나 PDF로 저장해서 올려 주세요.'};
+  if(flags&4)throw{userMsg:'배포용 한글 파일은 읽을 수 없어요. 한글에서 PDF로 저장해서 올려 주세요.'};
+  const secs=cfb.FullPaths.map((p,i)=>[p,i]).filter(([p])=>/BodyText\/Section\d+$/.test(p)).sort((a,b)=>a[0].localeCompare(b[0],undefined,{numeric:true}));
+  const out=[`--- ${file.name} ---`];
+  for(const [,i] of secs){
+    let b=new Uint8Array(cfb.FileIndex[i].content);
+    if(flags&1)b=await inflateRaw(b);
+    out.push(hwpSectionToText(b));
+  }
+  return out.join('\n');
+}
+async function fileToText(f){
+  if(/\.pdf$/i.test(f.name)||f.type==='application/pdf')return pdfToText(f);
+  if(/\.hwp$/i.test(f.name))return hwpToText(f);
+  if(/\.(xlsx|xls)$/i.test(f.name))return sheetToText(f);
+  if(/\.(csv|txt)$/i.test(f.name))return `--- ${f.name} ---\n`+await f.text();
+  return '';
+}
+
+// ── AI로 읽기 ──
+async function startUpload(){
+  const err=$u('upErr');
+  const files=upFiles.filter(f=>!/\.hwpx$/i.test(f.name));
+  if(!files.length){err.textContent=upFiles.length?'새 한글 형식(HWPX)은 아직 못 읽어요. 한글에서 HWP나 PDF로 저장해서 올려 주세요.':'파일을 골라 주세요.';return;}
+  upStep('work');
+  $u('upWorkTitle').textContent='파일을 읽고 있어요';
+  $u('upWorkDesc').textContent='한 달치면 1~3분 걸려요. 화면을 닫지 말아 주세요.';
+  try{
+    const parts=[];
+    for(const f of files)parts.push(await fileToText(f));
+    upText=parts.filter(Boolean).join('\n\n');
+  }catch(e){return upFail(e&&e.userMsg||'파일을 열지 못했어요. 암호가 걸린 파일인지 확인해 주세요.');}
+  if(upText.replace(/\[x=\d+\]|---.*---|\s/g,'').length<50)return upFail('파일에서 글자를 거의 못 읽었어요. 사진을 찍어 만든(스캔) PDF는 아직 못 읽어요.');
+
+  $u('upWorkTitle').textContent='AI가 메뉴와 알레르기를 정리하고 있어요';
+  upAbort=new AbortController();
+  let acc='',fail='';
+  try{
+    const res=await fetch(PARSE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:upText}),signal:upAbort.signal});
+    const reader=res.body.getReader(),dec=new TextDecoder();
+    let buf='';
+    for(;;){
+      const {value,done}=await reader.read();
+      if(done)break;
+      buf+=dec.decode(value,{stream:true});
+      let i;
+      while((i=buf.indexOf('\n'))>=0){
+        const line=buf.slice(0,i);buf=buf.slice(i+1);
+        if(!line.trim())continue;
+        const o=JSON.parse(line);
+        if(o.t){acc+=o.t;const n=(acc.match(/"name"/g)||[]).length;if(n)$u('upWorkDesc').textContent=`메뉴 ${n}개를 찾았어요…`;}
+        if(o.error)fail=o.error;
+      }
+    }
+  }catch(e){
+    if(e.name==='AbortError')return;
+    fail='인터넷 연결을 확인하고 다시 시도해 주세요.';
+  }finally{upAbort=null;}
+  if(fail)return upFail(fail);
+  let raw;
+  try{raw=JSON.parse(acc);}catch(e){return upFail('AI 결과를 읽지 못했어요. 다시 시도해 주세요.');}
+  upResult=normalizeResult(raw);
+  if(!upResult.items.length)return upFail('식단을 찾지 못했어요. 식단표 파일이 맞는지 확인해 주세요.');
+  renderReview();
+  renderSaveTo();
+  upStep('review');
+}
+function cancelUpload(){if(upAbort)upAbort.abort();upStep('pick');}
+function upFail(msg){upStep('pick');$u('upErr').textContent=msg;}
+
+// AI 결과를 앱 형식으로 다듬는다. 이상한 값은 버리지 않고 ⚠️로 올린다
+function normalizeResult(raw){
+  const y=+raw.year,m=+raw.month;
+  const mk=`${y}-${String(m).padStart(2,'0')}`;
+  const items=(raw.items||[]).filter(it=>it&&it.name&&/^\d{4}-\d{2}-\d{2}$/.test(it.date)).map(it=>{
+    const allergy=[...new Set((it.allergy||[]).map(Number).filter(n=>n>=1&&n<=19))].sort((a,b)=>a-b);
+    let chk=!!it.check,why=it.why||'';
+    if(!it.date.startsWith(mk)){chk=true;why=why||`${m}월이 아닌 날짜예요`;}
+    const dow=new Date(it.date+'T00:00:00').getDay();
+    if(dow===0){chk=true;why=why||'일요일 날짜예요';}
+    return{date:it.date,sec:SEC_ORDER.includes(it.sec)?it.sec:'점심',name:String(it.name).trim(),allergy,recipe:it.recipe||'',chk,why};
+  });
+  items.sort((a,b)=>a.date.localeCompare(b.date)||SEC_ORDER.indexOf(a.sec)-SEC_ORDER.indexOf(b.sec));
+  return{title:String(raw.title||'').trim().slice(0,30),year:y,month:m,mk,items,notes:raw.notes||[]};
+}
+
+function renderReview(){
+  const r=upResult;
+  const days=[...new Set(r.items.map(i=>i.date))];
+  const chks=r.items.filter(i=>i.chk);
+  $u('upSum').innerHTML=`<strong>${r.year}년 ${r.month}월</strong> · ${days.length}일, 메뉴 ${r.items.length}개를 찾았어요.<br><span style="color:var(--text2);font-size:.82rem">원본 식단표를 옆에 두고 알레르기 번호를 대조해 주세요. 메뉴를 누르면 고칠 수 있어요.</span>`;
+  const w=$u('upWarn');
+  w.hidden=!chks.length;
+  w.innerHTML=chks.length?`<b>⚠️ 꼭 확인할 메뉴 ${chks.length}개</b> — 아래 붉은 칸이에요. AI가 확신하지 못한 곳이에요.`:'';
+  $u('upNotes').innerHTML=r.notes.map(n=>`<li>${esc(String(n))}</li>`).join('');
+  $u('upSrc').textContent=upText;
+  const box=$u('upDays');box.innerHTML='';
+  days.forEach(d=>{
+    const dt=new Date(d+'T00:00:00');
+    const sec=document.createElement('div');sec.className='up-day';
+    sec.innerHTML=`<div class="up-day-h">${dt.getMonth()+1}월 ${dt.getDate()}일 (${dk[dt.getDay()]})</div>`;
+    r.items.forEach((it,idx)=>{
+      if(it.date!==d)return;
+      const b=document.createElement('button');b.type='button';
+      b.className='up-it'+(it.chk?' chk':'');
+      b.innerHTML=`<span class="sec">${esc(it.sec)}</span>${esc(it.name)}<span class="al">${it.allergy.map(n=>`<span>${n}</span>`).join('')}</span>${it.chk&&it.why?`<span class="why">⚠️ ${esc(it.why)}</span>`:''}`;
+      b.setAttribute('aria-expanded',upOpenIdx===idx?'true':'false');
+      b.onclick=()=>{upOpenIdx=upOpenIdx===idx?-1:idx;renderReview();};
+      sec.appendChild(b);
+      if(upOpenIdx===idx)sec.appendChild(editor(it,idx));
+    });
+    box.appendChild(sec);
+  });
+}
+function editor(it,idx){
+  const ed=document.createElement('div');ed.className='up-ed';
+  const inp=document.createElement('input');inp.className='up-input';inp.value=it.name;inp.setAttribute('aria-label','메뉴 이름');
+  inp.oninput=()=>{it.name=inp.value;};
+  const g=document.createElement('div');g.className='al-grid';
+  Object.entries(AN).forEach(([n,nm])=>{
+    const c=document.createElement('button');c.type='button';c.className='al-chip'+(it.allergy.includes(+n)?' on':'');
+    c.innerHTML=`<span class="n">${n}</span> ${nm}`;
+    c.setAttribute('aria-pressed',it.allergy.includes(+n)?'true':'false');
+    c.onclick=()=>{
+      it.allergy=it.allergy.includes(+n)?it.allergy.filter(x=>x!==+n):[...it.allergy,+n].sort((a,b)=>a-b);
+      c.classList.toggle('on');c.setAttribute('aria-pressed',c.classList.contains('on'));
+    };
+    g.appendChild(c);
+  });
+  const row=document.createElement('div');row.className='up-ed-row';
+  const del=document.createElement('button');del.type='button';del.textContent='이 메뉴 빼기';
+  del.onclick=()=>{upResult.items.splice(idx,1);upOpenIdx=-1;renderReview();};
+  const ok=document.createElement('button');ok.type='button';ok.className='done';ok.textContent='확인 완료';
+  ok.onclick=()=>{it.name=inp.value.trim()||it.name;it.chk=false;it.why='';upOpenIdx=-1;renderReview();};
+  row.appendChild(del);row.appendChild(ok);
+  ed.appendChild(inp);ed.appendChild(g);ed.appendChild(row);
+  return ed;
+}
+
+// 저장할 이름: 이미 올린 식단이 있으면 "이어서 저장"이 기본, 새 이름 칸엔 AI가 원본 머리말에서 읽은 이름을 채운다
+function renderSaveTo(){
+  const r=upResult,mine=mineCenters(),sel=$u('upSaveTo');
+  const fallback=`${r.month}월 식단`;
+  sel.innerHTML=mine.map(c=>`<option value="${esc(c.name)}">이어서 저장: ${esc(c.name)}</option>`).join('')+'<option value="">새 식단으로 저장</option>';
+  const same=mine.find(c=>c.name===r.title);
+  sel.value=same?same.name:(mine.length?mine[0].name:'');
+  sel.hidden=!mine.length;
+  $u('upNewName').value=r.title||fallback;
+  $u('upNewName').hidden=sel.value!=='';
+}
+async function saveUpload(){
+  const name=$u('upSaveTo').value||$u('upNewName').value.trim();
+  if(!name){$u('upNewName').focus();return;}
+  upResult.name=name;
+  const r=upResult,m=mineLoad();
+  // 같은 이름이면 같은 곳으로 본다 — 다음 달 파일이 이어서 쌓인다
+  let c=m.centers.find(x=>x.name===r.name);
+  if(!c){
+    c={id:MINE_PREFIX+Date.now().toString(36),name:r.name,region:`내 식단 · ${r.name}`,months:[]};
+    m.centers.push(c);
+  }
+  if(!c.months.includes(r.mk)){c.months.push(r.mk);c.months.sort();}
+  const menus={};
+  r.items.forEach(it=>{
+    (menus[it.date]=menus[it.date]||[]).push({name:it.name,recipe:it.recipe,allergy:it.allergy,sec:it.sec});
+  });
+  m.data[`${c.id}/${r.mk}`]={year:r.year,month:r.month,menus,allergens:AN,source:'upload',savedAt:new Date().toISOString()};
+  mineSave(m);
+  centers=centers.filter(x=>!x.id.startsWith(MINE_PREFIX)).concat(m.centers);
+  regionShowAll=false;
+  populateRegions(c.region);
+  const sel=document.getElementById('regionSel');
+  sel.value=c.region;
+  await onRegionChange();
+  document.getElementById('monthSel').value=r.mk;
+  await onMonthChange();
+  closeUpload();
+  closeSettings();
+}
 </script>
 </body>
 </html>

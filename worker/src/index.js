@@ -1,0 +1,154 @@
+// POST /parse
+// 부모가 올린 식단표에서 브라우저가 뽑은 텍스트를 받아, Claude로 날짜·끼니·메뉴·알레르기를 구조화한다.
+// 파일 자체는 받지 않는다(텍스트만). 저장도 하지 않는다 — 결과는 부모 기기 localStorage에만 남는다.
+//
+// 응답은 줄 단위 JSON 스트림(NDJSON):
+//   {"t":"..."}                      Claude가 쓰는 JSON 조각 (브라우저가 이어 붙인다)
+//   {"done":true,"stop":"end_turn"}  끝
+//   {"error":"..."}                  실패 (사람이 읽을 문장)
+//
+// 환경 변수
+//   ANTHROPIC_API_KEY  (secret)
+//   ALLOWED_ORIGINS    쉼표 구분. 예: https://theyirul.github.io,http://localhost:8000
+//   MONTHLY_LIMIT      한 달 전체 호출 상한 (기본 100)
+//   DAILY_PER_IP       IP 하나당 하루 상한 (기본 6)
+// 바인딩
+//   USAGE              KV. 상한 카운터
+
+import Anthropic from "@anthropic-ai/sdk";
+
+const MODEL = "claude-opus-5-5";
+const MAX_INPUT_CHARS = 120_000;
+
+const AN = {1:"난류(계란)",2:"우유",3:"메밀",4:"땅콩",5:"대두",6:"밀",7:"고등어",8:"게",9:"새우",10:"돼지고기",11:"복숭아",12:"토마토",13:"아황산류",14:"호두",15:"닭고기",16:"쇠고기",17:"오징어",18:"조개류",19:"잣"};
+
+const SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["title", "year", "month", "items", "notes"],
+  properties: {
+    title: { type: "string", description: "원본 머리말에 적힌 식단표 이름(기관·반·식단 종류). 예: '동대문구센터 일반식(1-2세)'. 날짜·발행일은 빼고 30자 이내. 없으면 빈 문자열" },
+    year: { type: "integer" },
+    month: { type: "integer" },
+    items: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["date", "sec", "name", "allergy", "recipe", "check", "why"],
+        properties: {
+          date: { type: "string", description: "YYYY-MM-DD" },
+          sec: { type: "string", enum: ["오전간식", "점심", "오후간식"] },
+          name: { type: "string" },
+          allergy: { type: "array", items: { type: "integer", enum: Object.keys(AN).map(Number) } },
+          recipe: { type: "string", description: "원본에 같은 메뉴의 조리법이 있으면 원문 그대로, 없으면 빈 문자열" },
+          check: { type: "boolean", description: "부모가 원본과 꼭 대조해야 하는 항목이면 true" },
+          why: { type: "string", description: "check가 true인 이유 한 줄. false면 빈 문자열" },
+        },
+      },
+    },
+    notes: { type: "array", items: { type: "string" }, description: "전체에 대한 주의사항(연령 혼재, 날짜 없는 특별식 제외 등)" },
+  },
+};
+
+const SYSTEM = `너는 어린이집 식단표를 구조화하는 도구다. 알레르기가 있는 아이의 부모가 이 결과로 아이가 먹을 수 있는 음식을 고른다. 틀린 알레르기 번호는 아이 건강에 직결되므로, 정확성이 가장 중요하다.
+
+입력은 PDF·한글(HWP)·엑셀에서 뽑은 텍스트다.
+- PDF 텍스트는 줄마다 [x=숫자] 좌표가 붙어 있다. 식단표는 보통 요일이 가로 열이고 끼니가 세로 행이므로, x 좌표로 같은 열(같은 날짜)에 속한 메뉴를 묶어라.
+- 한글(HWP) 표는 '<표 n>' 안에 '행r | 열a~b(행c~d 병합): 내용' 형식이다. 칸 하나 안의 줄바꿈은 ⏎로 표시했다. 날짜 머리칸(예: '열17~19: 1(목)')과 열 범위가 같은 칸이 그 날짜의 메뉴다. 병합칸은 표시된 행·열 범위 전체를 차지한다. 칸 안에서 ⏎ 다음 줄이 번호만이면(예: '소고기자장밥 ⏎ ①⑤⑥⑩') 바로 앞 메뉴의 알레르기 번호다. 괄호 숫자 표기((5,6))도 알레르기 번호다.
+
+알레르기 번호는 식품의약품안전처 표준이다: ${Object.entries(AN).map(([n, v]) => `${n}.${v}`).join(" ")}.
+원본은 번호를 원문자(①②), 괄호 숫자((5,6)), 점 구분(5.6.) 등으로 쓴다. 원문자는 조리법 단계 번호로도 쓰이니, 메뉴명 바로 옆에 붙은 것만 알레르기로 읽어라.
+
+규칙:
+- 원본에 적힌 알레르기 번호만 넣는다. 재료로 추정해서 번호를 더하지 않는다. 단, 메뉴명에 재료가 명백한데(예: 달걀찜, 우유) 번호가 없으면 check=true로 표시하고 why에 적는다.
+- 확신이 없는 항목(셀이 밀린 듯함, 번호가 어느 메뉴 것인지 애매함, 글자가 깨짐, 날짜 배정이 애매함)은 check=true.
+- 끼니는 셋 중 하나로 맞춘다: 오전간식(아침·오전 간식), 점심(중식), 오후간식. 저녁 등 그 밖의 끼니는 빼고 notes에 적는다.
+- 메뉴명은 원본 표기 그대로. 알레르기 표기는 이름에서 뺀다.
+- 한 칸에 '/'나 '또는'으로 여러 메뉴가 있으면 원본 구분대로 나눈다. '또는'으로 고르는 메뉴는 한 항목으로 둔다.
+- 날짜가 없는 특별식(생일식단 등)은 items에 넣지 말고 notes에 적는다. 휴일·빈 칸은 만들지 않는다.
+- 여러 연령(1-2세/3-5세)이 섞여 있으면: 연령이 지정됐으면 그 연령만 뽑고 notes에 적는다. 지정되지 않았으면 모든 항목을 그대로 뽑되 전부 check=true, why="여러 연령이 섞인 식단표예요. 우리 아이 반 것인지 확인하세요"로 하고 notes 맨 앞에도 적는다.
+- 텍스트에 [떨어진번호]가 붙은 칸은 원문자 알레르기 번호가 줄바꿈되어 메뉴명에서 떨어져 나온 조각이다. 같은 줄 앞 메뉴 것이라고 단정하지 마라 — 표에서 아래·위 줄 메뉴의 번호가 이어진 것일 수 있다. 가장 그럴듯한 메뉴에 붙이되, 그 조각과 같은 줄·바로 위 줄·바로 아래 줄의 메뉴는 모두 check=true로 하고 why에 "떨어진 번호(⑯⑱ 등)가 어느 메뉴 것인지 원본 확인"을 적는다. 조각을 버리지 않는다.
+- 조리법이 같은 문서에 메뉴와 함께 있으면 recipe에 원문 그대로 넣는다. 다른 메뉴의 조리법을 섞지 않는다.`;
+
+export default {
+  async fetch(request, env, ctx) {
+    const origin = request.headers.get("Origin") || "";
+    const allowed = (env.ALLOWED_ORIGINS || "").split(",").map((s) => s.trim()).filter(Boolean);
+    const cors = {
+      "Access-Control-Allow-Origin": allowed.includes(origin) ? origin : allowed[0] || "",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+      Vary: "Origin",
+    };
+    if (request.method === "OPTIONS") return new Response(null, { headers: cors });
+    const url = new URL(request.url);
+    if (url.pathname !== "/parse" || request.method !== "POST") return new Response("not found", { status: 404, headers: cors });
+    if (!allowed.includes(origin)) return fail("허용되지 않은 주소에서 온 요청이에요.", 403, cors);
+    if (!env.ANTHROPIC_API_KEY) return fail("서버에 AI 키가 아직 설정되지 않았어요.", 503, cors);
+
+    let body;
+    try { body = await request.json(); } catch { return fail("잘못된 요청이에요.", 400, cors); }
+    const text = String(body.text || "");
+    // 반은 묻지 않는다 — 부모가 올리는 파일이 곧 우리 아이 반 식단이다. 예전 앱이 보내는 값만 존중한다
+    const age = body.age === "toddler" ? "3-5세(유아반)" : body.age === "infant" ? "1-2세(영아반)" : "";
+    const hint = String(body.hint || "").slice(0, 100);
+    if (text.trim().length < 50) return fail("파일에서 글자를 거의 못 읽었어요. 스캔 이미지 PDF일 수 있어요.", 400, cors);
+    if (text.length > MAX_INPUT_CHARS) return fail("파일이 너무 커요. 한 달치 식단표만 올려 주세요.", 413, cors);
+
+    // 상한: 한 달 전체 + IP별 하루. KV는 즉시 일관되지 않아 몇 건 넘칠 수 있다 — 비용 폭주만 막으면 된다.
+    if (env.USAGE) {
+      const now = new Date(Date.now() + 9 * 3600e3).toISOString(); // KST
+      const mKey = "m:" + now.slice(0, 7);
+      const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+      const dKey = "d:" + now.slice(0, 10) + ":" + ip;
+      const [m, d] = await Promise.all([env.USAGE.get(mKey), env.USAGE.get(dKey)]);
+      if (+m >= +(env.MONTHLY_LIMIT || 100)) return fail("이번 달 분석 한도를 다 썼어요. 다음 달 1일에 다시 열려요.", 429, cors);
+      if (+d >= +(env.DAILY_PER_IP || 6)) return fail("오늘은 더 올릴 수 없어요. 내일 다시 시도해 주세요.", 429, cors);
+      ctx.waitUntil(Promise.all([
+        env.USAGE.put(mKey, String(+m + 1), { expirationTtl: 40 * 86400 }),
+        env.USAGE.put(dKey, String(+d + 1), { expirationTtl: 2 * 86400 }),
+      ]));
+    }
+
+    const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+    const enc = new TextEncoder();
+    const { readable, writable } = new TransformStream();
+    const w = writable.getWriter();
+    const send = (o) => w.write(enc.encode(JSON.stringify(o) + "\n"));
+
+    ctx.waitUntil((async () => {
+      try {
+        const stream = client.beta.messages.stream({
+          model: MODEL,
+          max_tokens: 64000,
+          betas: ["server-side-fallback-2026-07-01"],
+          fallbacks: "default",
+          output_config: { effort: "medium", format: { type: "json_schema", schema: SCHEMA } },
+          system: SYSTEM,
+          messages: [{
+            role: "user",
+            content: `${age ? "연령: " + age + "\n" : ""}${hint ? "어린이집/지역: " + hint + "\n" : ""}\n아래는 식단표 원본 텍스트다.\n\n${text}`,
+          }],
+        });
+        stream.on("text", (t) => { send({ t }); });
+        const msg = await stream.finalMessage();
+        if (msg.stop_reason === "refusal") await send({ error: "AI가 이 파일을 처리하지 못했어요." });
+        else if (msg.stop_reason === "max_tokens") await send({ error: "식단이 너무 길어서 중간에 끊겼어요. 한 달치만 올려 주세요." });
+        else await send({ done: true, stop: msg.stop_reason });
+      } catch (e) {
+        const status = e && e.status;
+        await send({ error: status === 429 || status === 529 ? "AI가 지금 붐벼요. 잠시 뒤 다시 시도해 주세요." : "분석 중 오류가 났어요. 다시 시도해 주세요." });
+        console.log("parse error", status, e && e.message);
+      } finally {
+        await w.close();
+      }
+    })());
+
+    return new Response(readable, { headers: { ...cors, "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-store" } });
+  },
+};
+
+function fail(msg, status, cors) {
+  return new Response(JSON.stringify({ error: msg }) + "\n", { status, headers: { ...cors, "Content-Type": "application/x-ndjson; charset=utf-8" } });
+}

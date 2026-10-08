@@ -1,0 +1,14 @@
+name = "meal-planner-parse"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ALLOWED_ORIGINS = "https://theyirul.github.io,http://localhost:8000"
+MONTHLY_LIMIT = "100"
+DAILY_PER_IP = "6"
+
+# 사용 상한 카운터
+[[kv_namespaces]]
+binding = "USAGE"
+id = "46c5b08889284916958a1b4e7170f76d"

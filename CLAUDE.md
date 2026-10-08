@@ -45,6 +45,11 @@
 - 결과를 `uploads/{YYYYMM}_{지역}_{연령}_{유형}_수동.json` 형식으로 저장하면 build.py가 파서 우회하고 그대로 임베딩.
 - 알레르기 번호는 잘못 입력 시 아이 건강 직결 → **사람 검증 전까지 라이브에 안 올림**.
 
+## 셀프 업로드 (B안 v1, 2026-10)
+- 부모가 앱에서 직접 올린 식단은 그 기기 localStorage(`meal-planner-mine`)에만 있다. center id는 `mine-`로 시작하고 `_fetchMonthData`가 먼저 가로챈다. EMBEDDED_DATA와 섞이지 않는다.
+- AI 창구는 `worker/`(Cloudflare Worker). 프롬프트·JSON 스키마·상한이 전부 `worker/src/index.js`에 있다. 배포: `cd worker && npx wrangler deploy`. 키: `npx wrangler secret put ANTHROPIC_API_KEY`.
+- 알레르기 판단 원칙은 수동 운영과 같다: 원본 번호만, 추정으로 더하지 않음, 애매하면 ⚠️로 부모 확인.
+
 ## 배포
 - GitHub Pages (theyirul/meal-planner, main 브랜치)
 - Claude Code CLI에서 git push 가능 (확인됨 2026-05-10)
