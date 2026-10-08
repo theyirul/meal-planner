@@ -2,10 +2,8 @@
 // 부모가 올린 식단표에서 브라우저가 뽑은 텍스트를 받아, Claude로 날짜·끼니·메뉴·알레르기를 구조화한다.
 // 파일 자체는 받지 않는다(텍스트만). 저장도 하지 않는다 — 결과는 부모 기기 localStorage에만 남는다.
 //
-// 응답은 줄 단위 JSON 스트림(NDJSON):
-//   {"t":"..."}                      Claude가 쓰는 JSON 조각 (브라우저가 이어 붙인다)
-//   {"done":true,"stop":"end_turn"}  끝
-//   {"error":"..."}                  실패 (사람이 읽을 문장)
+// 응답: 성공이면 Anthropic SSE 스트림을 그대로 넘긴다(브라우저가 text_delta를 이어 붙인다).
+//        실패면 {"error":"사람이 읽을 문장"} JSON + 4xx/5xx.
 //
 // 환경 변수
 //   ANTHROPIC_API_KEY  (secret)
@@ -15,8 +13,7 @@
 // 바인딩
 //   USAGE              KV. 상한 카운터
 
-import Anthropic from "@anthropic-ai/sdk";
-
+// 속도 우선(2026-10-08): Opus로 한 달치 3~5분 → 부모가 기다리다 나간다. 정확도는 동대문 정답지로 재검증
 const MODEL = "claude-opus-5-5";
 const MAX_INPUT_CHARS = 120_000;
 
@@ -35,13 +32,12 @@ const SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["date", "sec", "name", "allergy", "recipe", "check", "why"],
+        required: ["date", "sec", "name", "allergy", "check", "why"],
         properties: {
           date: { type: "string", description: "YYYY-MM-DD" },
           sec: { type: "string", enum: ["오전간식", "점심", "오후간식"] },
           name: { type: "string" },
           allergy: { type: "array", items: { type: "integer", enum: Object.keys(AN).map(Number) } },
-          recipe: { type: "string", description: "원본에 같은 메뉴의 조리법이 있으면 원문 그대로, 없으면 빈 문자열" },
           check: { type: "boolean", description: "부모가 원본과 꼭 대조해야 하는 항목이면 true" },
           why: { type: "string", description: "check가 true인 이유 한 줄. false면 빈 문자열" },
         },
@@ -69,7 +65,7 @@ const SYSTEM = `너는 어린이집 식단표를 구조화하는 도구다. 알�
 - 날짜가 없는 특별식(생일식단 등)은 items에 넣지 말고 notes에 적는다. 휴일·빈 칸은 만들지 않는다.
 - 여러 연령(1-2세/3-5세)이 섞여 있으면: 연령이 지정됐으면 그 연령만 뽑고 notes에 적는다. 지정되지 않았으면 모든 항목을 그대로 뽑되 전부 check=true, why="여러 연령이 섞인 식단표예요. 우리 아이 반 것인지 확인하세요"로 하고 notes 맨 앞에도 적는다.
 - 텍스트에 [떨어진번호]가 붙은 칸은 원문자 알레르기 번호가 줄바꿈되어 메뉴명에서 떨어져 나온 조각이다. 같은 줄 앞 메뉴 것이라고 단정하지 마라 — 표에서 아래·위 줄 메뉴의 번호가 이어진 것일 수 있다. 가장 그럴듯한 메뉴에 붙이되, 그 조각과 같은 줄·바로 위 줄·바로 아래 줄의 메뉴는 모두 check=true로 하고 why에 "떨어진 번호(⑯⑱ 등)가 어느 메뉴 것인지 원본 확인"을 적는다. 조각을 버리지 않는다.
-- 조리법이 같은 문서에 메뉴와 함께 있으면 recipe에 원문 그대로 넣는다. 다른 메뉴의 조리법을 섞지 않는다.`;
+- 조리법은 옮기지 않는다(앱이 따로 붙인다). 원본에 조리법이 섞여 있어도 메뉴명과 알레르기만 뽑는다.`;
 
 export default {
   async fetch(request, env, ctx) {
@@ -111,41 +107,42 @@ export default {
       ]));
     }
 
-    const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
-    const enc = new TextEncoder();
-    const { readable, writable } = new TransformStream();
-    const w = writable.getWriter();
-    const send = (o) => w.write(enc.encode(JSON.stringify(o) + "\n"));
-
-    ctx.waitUntil((async () => {
-      try {
-        const stream = client.beta.messages.stream({
+    // AI 응답(SSE)을 풀지 않고 그대로 흘려보낸다. 조각마다 풀어 다시 포장하면 무료 요금제 CPU 한도를 넘는다
+    // (2026-10-08 실사용 시험에서 "Worker exceeded CPU time limit"). 푸는 일은 브라우저가 한다.
+    let upstream;
+    try {
+      upstream = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": env.ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "anthropic-beta": "server-side-fallback-2026-07-01",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
           model: MODEL,
           max_tokens: 64000,
-          betas: ["server-side-fallback-2026-07-01"],
+          stream: true,
           fallbacks: "default",
-          output_config: { effort: "medium", format: { type: "json_schema", schema: SCHEMA } },
+          output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
           system: SYSTEM,
           messages: [{
             role: "user",
             content: `${age ? "연령: " + age + "\n" : ""}${hint ? "어린이집/지역: " + hint + "\n" : ""}\n아래는 식단표 원본 텍스트다.\n\n${text}`,
           }],
-        });
-        stream.on("text", (t) => { send({ t }); });
-        const msg = await stream.finalMessage();
-        if (msg.stop_reason === "refusal") await send({ error: "AI가 이 파일을 처리하지 못했어요." });
-        else if (msg.stop_reason === "max_tokens") await send({ error: "식단이 너무 길어서 중간에 끊겼어요. 한 달치만 올려 주세요." });
-        else await send({ done: true, stop: msg.stop_reason });
-      } catch (e) {
-        const status = e && e.status;
-        await send({ error: status === 429 || status === 529 ? "AI가 지금 붐벼요. 잠시 뒤 다시 시도해 주세요." : "분석 중 오류가 났어요. 다시 시도해 주세요." });
-        console.log("parse error", status, e && e.message);
-      } finally {
-        await w.close();
-      }
-    })());
-
-    return new Response(readable, { headers: { ...cors, "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-store" } });
+        }),
+      });
+    } catch (e) {
+      console.log("upstream fetch error", e && e.message);
+      return fail("AI 서버에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요.", 502, cors);
+    }
+    if (!upstream.ok) {
+      const detail = await upstream.text();
+      console.log("upstream status", upstream.status, detail.slice(0, 300));
+      const busy = upstream.status === 429 || upstream.status === 529;
+      return fail(busy ? "AI가 지금 붐벼요. 잠시 뒤 다시 시도해 주세요." : "분석 중 오류가 났어요. 다시 시도해 주세요.", busy ? 503 : 502, cors);
+    }
+    return new Response(upstream.body, { headers: { ...cors, "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-store" } });
   },
 };
 

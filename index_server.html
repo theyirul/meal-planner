@@ -494,11 +494,7 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
     </div>
     <div class="ft-story">알레르기가 있는 아기를 키우는 엄마가 만들었어요.<br>매일 아침 보다 건강하고 안전한 하루를 계획해요.</div>
     <div class="ft-links">
-      <a href="#" id="aboutLink">서비스 소개</a>
-      <span class="dot">&#183;</span>
       <a href="https://open.kakao.com/o/gxguv9mi" target="_blank">문의하기</a>
-      <span class="dot">&#183;</span>
-      <a href="https://instagram.com/yirul" target="_blank">@yirul</a>
     </div>
     <div class="ft-copy">&copy; 2026 매일아침</div>
   </div>
@@ -1506,6 +1502,40 @@ async function pdfToText(file){
   return out.join('\n');
 }
 function loadScript(src){return new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=no;document.head.appendChild(s);});}
+// 레시피 엑셀(구분/메뉴명|음식명/…/조리방법 표)은 AI에 보내지 않고 앱이 직접 {메뉴명: 조리법}으로 읽는다
+// — AI가 조리법 원문까지 다시 쓰면 한 달치 3~5분이 걸려 부모가 나간다
+let upRecipes={};
+async function readRecipeSheets(file){
+  if(!window.XLSX)await loadScript(XLSX_JS);
+  const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
+  const out={};
+  for(const n of wb.SheetNames){
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,blankrows:false,defval:''});
+    let nameCol=-1,recCol=-1,cur='';
+    for(const r of rows){
+      const cells=r.map(c=>String(c).trim());
+      if(nameCol<0){
+        const ni=cells.findIndex(c=>/^(메뉴명|음식명|메뉴)$/.test(c)),ri=cells.findIndex(c=>/조리\s*방법|조리법/.test(c));
+        if(ni>=0&&ri>=0){nameCol=ni;recCol=ri;}
+        continue;
+      }
+      if(/^(메뉴명|음식명|메뉴)$/.test(cells[nameCol]))continue;
+      if(cells[nameCol])cur=cells[nameCol].replace(/[①-⑳]+/g,'').trim();
+      const rec=cells[recCol];
+      if(cur&&rec&&rec!=='-')out[cur]=out[cur]?out[cur]+'\n'+rec:rec;
+    }
+  }
+  return out;
+}
+function rkey(s){return String(s).split(/\n|\*/)[0].replace(/[✔♣\s]|\(\d+ml\)|[①-⑳]|\([\d,\s]+\)/g,'');}
+function matchRecipe(name){
+  const k=rkey(name);if(!k)return'';
+  const keys=Object.keys(upRecipes);
+  for(const r of keys)if(rkey(r)===k)return upRecipes[r];
+  // 레시피명이 메뉴명 안에 들어 있으면(소고기콩나물밥&양념장 ⊃ 소고기콩나물밥) 가장 긴 것
+  let best='';for(const r of keys){const rk=rkey(r).split('&')[0];if(rk.length>=2&&k.includes(rk)&&rk.length>rkey(best).length)best=r;}
+  return best?upRecipes[best]:'';
+}
 async function sheetToText(file){
   if(!window.XLSX)await loadScript(XLSX_JS);
   const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
@@ -1623,10 +1653,16 @@ async function startUpload(){
   if(!files.length){err.textContent=upFiles.length?'새 한글 형식(HWPX)은 아직 못 읽어요. 한글에서 HWP나 PDF로 저장해서 올려 주세요.':'파일을 골라 주세요.';return;}
   upStep('work');
   $u('upWorkTitle').textContent='파일을 읽고 있어요';
-  $u('upWorkDesc').textContent='한 달치면 1~3분 걸려요. 화면을 닫지 말아 주세요.';
+  $u('upWorkDesc').textContent='1분쯤 걸려요. 다른 앱으로 넘어가면 처음부터 다시 해야 해요.';
   try{
-    const parts=[];
-    for(const f of files)parts.push(await fileToText(f));
+    const parts=[];upRecipes={};
+    const menuFiles=[];
+    for(const f of files){
+      if(/\.(xlsx|xls)$/i.test(f.name)){const rec=await readRecipeSheets(f);if(Object.keys(rec).length){Object.assign(upRecipes,rec);continue;}}
+      menuFiles.push(f);
+    }
+    // 레시피 엑셀만 올렸으면(광진처럼 날짜별 메뉴가 레시피 파일에 들어 있는 경우) 그걸 식단으로 읽는다
+    for(const f of (menuFiles.length?menuFiles:files))parts.push(await fileToText(f));
     upText=parts.filter(Boolean).join('\n\n');
   }catch(e){return upFail(e&&e.userMsg||'파일을 열지 못했어요. 암호가 걸린 파일인지 확인해 주세요.');}
   if(upText.replace(/\[x=\d+\]|---.*---|\s/g,'').length<50)return upFail('파일에서 글자를 거의 못 읽었어요. 사진을 찍어 만든(스캔) PDF는 아직 못 읽어요.');
@@ -1636,24 +1672,31 @@ async function startUpload(){
   let acc='',fail='';
   try{
     const res=await fetch(PARSE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:upText}),signal:upAbort.signal});
+    // 실패면 Worker가 {"error":…} JSON을, 성공이면 Anthropic SSE를 그대로 보낸다(Worker CPU 한도 때문에 푸는 건 여기서)
+    if(!res.ok){let j={};try{j=await res.json();}catch(e){}throw{userMsg:j.error||'분석 중 오류가 났어요. 다시 시도해 주세요.'};}
     const reader=res.body.getReader(),dec=new TextDecoder();
-    let buf='';
+    let buf='',stop='',n0=0;
     for(;;){
       const {value,done}=await reader.read();
       if(done)break;
       buf+=dec.decode(value,{stream:true});
       let i;
       while((i=buf.indexOf('\n'))>=0){
-        const line=buf.slice(0,i);buf=buf.slice(i+1);
-        if(!line.trim())continue;
-        const o=JSON.parse(line);
-        if(o.t){acc+=o.t;const n=(acc.match(/"name"/g)||[]).length;if(n)$u('upWorkDesc').textContent=`메뉴 ${n}개를 찾았어요…`;}
-        if(o.error)fail=o.error;
+        const line=buf.slice(0,i).trim();buf=buf.slice(i+1);
+        if(!line.startsWith('data:'))continue;
+        let o;try{o=JSON.parse(line.slice(5));}catch(e){continue;}
+        if(o.type==='content_block_delta'&&o.delta&&o.delta.type==='text_delta')acc+=o.delta.text;
+        else if(o.type==='message_delta'&&o.delta&&o.delta.stop_reason)stop=o.delta.stop_reason;
+        else if(o.type==='error')fail=(o.error&&/overloaded|rate/i.test(o.error.type||''))?'AI가 지금 붐벼요. 잠시 뒤 다시 시도해 주세요.':'분석 중 오류가 났어요. 다시 시도해 주세요.';
       }
+      const n=(acc.match(/"name"/g)||[]).length;if(n&&n!==n0){n0=n;$u('upWorkDesc').textContent=`메뉴 ${n}개를 찾았어요…`;}
     }
+    if(!fail&&stop==='max_tokens')fail='식단이 너무 길어서 중간에 끊겼어요. 한 달치만 올려 주세요.';
+    if(!fail&&stop==='refusal')fail='AI가 이 파일을 처리하지 못했어요.';
+    if(!fail&&!stop)fail='연결이 끊겼어요. 화면을 켜 둔 채로 다시 시도해 주세요.';
   }catch(e){
     if(e.name==='AbortError')return;
-    fail='인터넷 연결을 확인하고 다시 시도해 주세요.';
+    fail=e&&e.userMsg||'인터넷 연결을 확인하고 다시 시도해 주세요.';
   }finally{upAbort=null;}
   if(fail)return upFail(fail);
   let raw;
@@ -1677,7 +1720,8 @@ function normalizeResult(raw){
     if(!it.date.startsWith(mk)){chk=true;why=why||`${m}월이 아닌 날짜예요`;}
     const dow=new Date(it.date+'T00:00:00').getDay();
     if(dow===0){chk=true;why=why||'일요일 날짜예요';}
-    return{date:it.date,sec:SEC_ORDER.includes(it.sec)?it.sec:'점심',name:String(it.name).trim(),allergy,recipe:it.recipe||'',chk,why};
+    const nm=String(it.name).trim();
+    return{date:it.date,sec:SEC_ORDER.includes(it.sec)?it.sec:'점심',name:nm,allergy,recipe:matchRecipe(nm),chk,why};
   });
   items.sort((a,b)=>a.date.localeCompare(b.date)||SEC_ORDER.indexOf(a.sec)-SEC_ORDER.indexOf(b.sec));
   return{title:String(raw.title||'').trim().slice(0,30),year:y,month:m,mk,items,notes:raw.notes||[]};
