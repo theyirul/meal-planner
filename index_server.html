@@ -222,6 +222,23 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
 .td-onboard-desc{font-size:.88rem;color:var(--text2);line-height:1.6;margin-bottom:20px}
 .td-onboard-btn{display:inline-block;padding:12px 32px;background:var(--brand);color:#fff;border-radius:10px;font-size:.9rem;font-weight:600;border:none;cursor:pointer;font-family:inherit;transition:all .15s}
 .td-onboard-btn:active{opacity:.9}
+/* 처음 온 사람: 어떤 식단을 볼지 고르는 카드 */
+.ob{padding:8px 0 24px}
+.ob-title{font-size:1.15rem;font-weight:700;color:var(--text);margin-bottom:16px}
+.ob-main{display:block;width:100%;text-align:left;padding:18px 20px;background:var(--brand);color:#fff;border:none;border-radius:14px;font-family:inherit;cursor:pointer}
+.ob-main b{display:block;font-size:1rem;margin-bottom:4px}
+.ob-main span{font-size:.82rem;opacity:.8}
+.ob-sub{font-size:.9rem;font-weight:600;color:var(--text);margin:28px 0 10px}
+.ob-regions{display:flex;flex-wrap:wrap;gap:8px}
+.ob-regions button{padding:10px 16px;border:1px solid var(--border);background:var(--card);border-radius:20px;font-family:inherit;font-size:.86rem;color:var(--text);cursor:pointer}
+.ob-note{font-size:.76rem;color:var(--text3);line-height:1.6;margin-top:10px}
+.al-band{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 14px;margin-bottom:14px;background:var(--shop-bg);border-radius:12px;font-size:.84rem;color:var(--text)}
+.al-band[hidden],.ctr-hint[hidden]{display:none}
+.al-band-btns{display:flex;gap:6px}
+.al-band button{padding:6px 12px;border:none;border-radius:8px;background:var(--brand);color:#fff;font-family:inherit;font-size:.8rem;cursor:pointer}
+.al-band button.ghost{background:none;color:var(--text2)}
+.ctr-hint{text-align:center;font-size:.8rem;color:var(--text2);margin:-6px 0 20px}
+.ctr-hint a{color:var(--text);font-weight:600}
 /* ── Save button in settings ── */
 .st-save-btn{display:block;width:100%;padding:14px;background:var(--brand);color:#fff;border:none;border-radius:10px;font-size:.95rem;font-weight:600;font-family:inherit;cursor:pointer;transition:all .15s;letter-spacing:-.01em}
 .st-save-btn:active{opacity:.9}
@@ -276,6 +293,8 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
 @media(prefers-reduced-motion:reduce){.up-spin{animation:none}}
 .up-work-title{font-size:1rem;font-weight:700;margin-bottom:6px}
 .up-work-desc{font-size:.84rem;color:var(--text2)}
+.up-spin[hidden]{display:none}
+.up-choose{display:flex;flex-direction:column;gap:10px;margin-top:18px}
 .up-sum{font-size:.92rem;margin-bottom:14px}
 .up-sum strong{font-weight:700}
 .up-warn{background:var(--alert-bg);border:1px solid var(--alert-light);border-radius:var(--radius);padding:12px 14px;font-size:.84rem;color:var(--text);margin-bottom:14px;line-height:1.55}
@@ -459,14 +478,20 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
     </div>
   </div>
   <div class="sp-bottom" id="upBottom">
-    <button class="st-save-btn" type="button" id="upGo" onclick="startUpload()">AI로 읽기</button>
+    <button class="st-save-btn" type="button" id="upGo" onclick="startUpload()">식단 읽기</button>
   </div>
 </div>
 
 <!-- TODAY TAB (오늘, default home) -->
 <div class="tc on" id="t-w">
+  <div id="obBox"></div>
+  <div class="al-band" id="alBand" hidden>
+    <span>우리 아이 알레르기를 고르면 메뉴에 표시돼요</span>
+    <span class="al-band-btns"><button type="button" onclick="alBandPick()">고르기</button><button type="button" class="ghost" onclick="alBandNone()">없어요</button></span>
+  </div>
   <div class="wn"><button onclick="pw()">&#8249;</button><div class="wr" id="wR"></div><button onclick="nw()">&#8250;</button></div>
   <div class="wp" id="wP"></div>
+  <div class="ctr-hint" id="ctrHint" hidden>우리 어린이집 식단이 다르면 <a href="#" onclick="openUpload();return false">직접 올려 보세요</a></div>
 </div>
 
 <!-- MONTHLY TAB (월간) -->
@@ -511,6 +536,7 @@ let currentCenter='';
 let currentMonth='';
 let dataLoaded=false;
 let hideSat=false; // 토요일 숨기기
+let alAsked=false; // 알레르기 안내 띠에서 '고르기'나 '없어요'를 눌렀는지
 let ageGroup='infant'; // infant(영아반) or toddler(유아반)
 
 // 지역별 가용 연령반 매핑
@@ -537,7 +563,7 @@ function saveSettings(){
   const region=document.getElementById('regionSel').value;
   const monthEl=document.getElementById('monthSel');
   const month=monthEl?monthEl.value:'';
-  const s={regionId:region,monthKey:month,allergens:[...F],hideSat,ageGroup};
+  const s={regionId:region,monthKey:month,allergens:[...F],hideSat,ageGroup,alAsked};
   localStorage.setItem(STORE_KEY,JSON.stringify(s));
 }
 
@@ -552,6 +578,7 @@ async function init(){
     document.querySelectorAll('.al-chip').forEach(c=>c.classList.toggle('on',F.has(+c.dataset.n)));
   }
 
+  alAsked=!!saved.alAsked;
   // Restore hideSat
   if(saved.hideSat){
     hideSat=true;
@@ -589,38 +616,37 @@ async function init(){
   updateFilterBar();
   updateTabBadge();
   placeUploadCta();
+  if(!dataLoaded)rw(); // 처음 온 사람: 빈 화면 대신 "어떤 식단을 볼까요?"
 }
 
 // ── 지역 드롭다운 — 이번 달 업데이트된 지역 우선 ──
-// 이 기기에 올린 "내 식단"이 있으면 그것만 보여준다. 센터 지역 목록은 아직 안 올린 사람용
+// 이 기기에 올린 "내 식단"이 있으면 맨 위 묶음으로, 센터 식단은 그 아래 묶음으로 둔다(둘 다 고를 수 있게)
 function populateRegions(keep){
   const regionSel=document.getElementById('regionSel');
   const MINE_RE='내 식단 · ';
   const hasMine=centers.some(c=>c.region.startsWith(MINE_RE));
-  const onlyMine=hasMine; // 내 식단을 올린 사람은 내 것만 본다(센터 식단은 아직 안 올린 사람용)
-  document.getElementById('regionLabel').textContent=onlyMine?'우리 식단':'센터 식단 보기';
-  document.getElementById('regionDesc').hidden=onlyMine;
+  document.getElementById('regionLabel').textContent=hasMine?'보는 식단':'센터 식단 보기';
+  document.getElementById('regionDesc').hidden=hasMine;
   const _now=new Date();
   const _curKey=`${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}`;
   const regionInfo={};
   centers.forEach(c=>{
-    if(onlyMine&&!c.region.startsWith(MINE_RE))return;
     const isNew=Array.isArray(c.months)&&c.months.includes(_curKey);
     if(!(c.region in regionInfo)||isNew)regionInfo[c.region]={isNew};
   });
-  const regions=Object.keys(regionInfo).sort((a,b)=>{
+  const sorted=list=>list.sort((a,b)=>{
     const na=regionInfo[a].isNew,nb=regionInfo[b].isNew;
     if(na!==nb)return na?-1:1;       // 업데이트된 지역을 위로
     return a.localeCompare(b,'ko');  // 그 안에서는 가나다순
   });
-  regionSel.innerHTML=onlyMine?'':'<option value="">지역을 선택하세요</option>';
-  regions.forEach(r=>{
-    const o=document.createElement('option');
-    o.value=r;
-    o.textContent=r;
-    regionSel.appendChild(o);
-  });
-
+  const all=Object.keys(regionInfo);
+  const mine=sorted(all.filter(r=>r.startsWith(MINE_RE))),ctr=sorted(all.filter(r=>!r.startsWith(MINE_RE)));
+  const opt=r=>{const o=document.createElement('option');o.value=r;o.textContent=r;return o;};
+  regionSel.innerHTML=hasMine?'':'<option value="">지역을 선택하세요</option>';
+  if(hasMine){
+    const g1=document.createElement('optgroup');g1.label='내가 올린 식단';mine.forEach(r=>g1.appendChild(opt(r)));regionSel.appendChild(g1);
+    const g2=document.createElement('optgroup');g2.label='센터 식단';ctr.forEach(r=>g2.appendChild(opt(r)));regionSel.appendChild(g2);
+  }else ctr.forEach(r=>regionSel.appendChild(opt(r)));
 }
 
 // ── Allergy grid (settings) ──
@@ -994,9 +1020,40 @@ function sw(t){
   if(t==='w')rw();
   if(t==='m'){
     if(dataLoaded){af();}
-    else{document.getElementById('calWrap').innerHTML=`<div class="td-onboard"><div class="td-onboard-title">지역을 선택해주세요</div><div class="td-onboard-desc">설정에서 지역을 선택하면<br>월간 식단을 한눈에 볼 수 있어요</div><button class="td-onboard-btn" onclick="toggleSettings()">설정하기</button></div>`;}
+    else{document.getElementById('calWrap').innerHTML=onboardHTML();}
   }
 }
+
+// ── 처음 온 사람 안내 ──
+// 두 길을 첫 화면에서 바로 고르게 한다: 받은 식단표 올리기 / 센터 식단 둘러보기
+function onboardHTML(){
+  const regs=[...new Set(centers.filter(c=>!c.id.startsWith(MINE_PREFIX)).map(c=>c.region))].sort((a,b)=>a.localeCompare(b,'ko'));
+  return `<div class="ob">
+    <div class="ob-title">어떤 식단을 볼까요?</div>
+    <button class="ob-main" type="button" onclick="openUpload()"><b>우리 어린이집 식단표 올리기</b><span>어린이집에서 받은 PDF, 한글, 엑셀 파일</span></button>
+    ${regs.length?`<div class="ob-sub">센터 식단 먼저 둘러보기</div>
+    <div class="ob-regions">${regs.map(r=>`<button type="button" data-r="${esc(r)}" onclick="pickRegion(this.dataset.r)">${esc(r)}</button>`).join('')}</div>
+    <div class="ob-note">급식관리지원센터가 만든 표준 식단이에요. 어린이집마다 조금 다를 수 있어요.</div>`:''}
+  </div>`;
+}
+async function pickRegion(r){
+  const sel=document.getElementById('regionSel');
+  sel.value=r;
+  await onRegionChange();
+  if(document.getElementById('t-m').classList.contains('on'))af();
+}
+// 식단을 보기 시작했는데 알레르기를 안 골랐으면 띠로 묻는다. 센터 식단을 보는 사람에겐 올리기 길을 작게 남긴다
+function updateHints(){
+  const on=dataLoaded&&!!currentCenter;
+  $u('alBand').hidden=!(on&&!F.size&&!alAsked);
+  $u('ctrHint').hidden=!(on&&!currentCenter.startsWith(MINE_PREFIX));
+}
+function alBandPick(){
+  alAsked=true;saveSettings();updateHints();
+  toggleSettings();
+  setTimeout(()=>document.getElementById('alGrid').scrollIntoView({block:'center'}),50);
+}
+function alBandNone(){alAsked=true;saveSettings();updateHints();}
 
 // ── Settings panel ──
 function toggleSettings(){
@@ -1079,15 +1136,16 @@ function nw(){if(wI<wks.length-1){wI++;rw();}}
 function rw(){
   const row=document.getElementById('wR');
   const wp=document.getElementById('wP');
+  const nav=document.querySelector('#t-w .wn');
   if(!dataLoaded||!currentCenter){
-    row.innerHTML=`<div class="td-onboard">
-      <div class="td-onboard-title">지역을 선택해주세요</div>
-      <div class="td-onboard-desc">설정에서 지역을 선택하면<br>월간 식단을 한눈에 볼 수 있어요</div>
-      <button class="td-onboard-btn" onclick="toggleSettings()">설정하기</button>
-    </div>`;
+    $u('obBox').innerHTML=onboardHTML();
+    row.innerHTML='';nav.style.display='none';
     wp.classList.remove('sh');
+    updateHints();
     return;
   }
+  $u('obBox').innerHTML='';nav.style.display='';
+  updateHints();
   const wk=wks[wI];if(!wk)return;
   const fds=wk.filter(d=>{if(!d)return false;if(hideSat&&new Date(d+'T00:00:00').getDay()===6)return false;return true;});
   if(!fds.length){row.innerHTML='';return;}
@@ -1403,12 +1461,15 @@ function mineCenters(){return mineLoad().centers;}
 let upFiles=[],upText='',upResult=null,upAbort=null,upOpenIdx=-1;
 const $u=id=>document.getElementById(id);
 
+let upStepNow='pick';
 function upStep(step){
+  upStepNow=step;
+  $u('upWork').querySelector('.up-spin').hidden=false;
   $u('upPick').hidden=step!=='pick';
   $u('upWork').hidden=step!=='work';
   $u('upReview').hidden=step!=='review';
   const b=$u('upBottom');
-  if(step==='pick'){b.innerHTML='<button class="st-save-btn" type="button" id="upGo" onclick="startUpload()">AI로 읽기</button>';}
+  if(step==='pick'){b.innerHTML='<button class="st-save-btn" type="button" id="upGo" onclick="startUpload()">식단 읽기</button>';}
   else if(step==='work'){b.innerHTML='<button class="st-reset-btn" type="button" style="margin-top:0" onclick="cancelUpload()">취소</button>';}
   else{
     b.innerHTML='<label class="up-confirm"><input type="checkbox" id="upOk" onchange="document.getElementById(\'upSave\').disabled=!this.checked"> 원본 식단표와 알레르기 번호를 대조했어요. 틀린 곳은 눌러서 고쳤어요.</label>'+
@@ -1470,8 +1531,9 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 // ── 파일 → 글자 ──
 let _pdfjs=null;
+async function pdfjs(){if(!_pdfjs){_pdfjs=await import(PDFJS);_pdfjs.GlobalWorkerOptions.workerSrc=PDFJS_WORKER;}return _pdfjs;}
 async function pdfToText(file){
-  if(!_pdfjs){_pdfjs=await import(PDFJS);_pdfjs.GlobalWorkerOptions.workerSrc=PDFJS_WORKER;}
+  await pdfjs();
   const doc=await _pdfjs.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
   const out=[];
   for(let p=1;p<=doc.numPages;p++){
@@ -1505,7 +1567,7 @@ async function readRecipeSheets(file){
   const out={};
   for(const n of wb.SheetNames){
     const rows=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,blankrows:false,defval:''});
-    let nameCol=-1,recCol=-1,cur='';
+    let nameCol=-1,recCol=-1,cur='',skip=false;
     for(const r of rows){
       const cells=r.map(c=>String(c).trim());
       if(nameCol<0){
@@ -1514,9 +1576,10 @@ async function readRecipeSheets(file){
         continue;
       }
       if(/^(메뉴명|음식명|메뉴)$/.test(cells[nameCol]))continue;
-      if(cells[nameCol])cur=cells[nameCol].replace(/[①-⑳]+/g,'').trim();
+      // 같은 메뉴가 다른 시트(광진: '출력용'과 원본)나 다른 날짜에 또 나오면 처음 것만 쓴다 — 이어 붙이면 조리법이 두 번 나온다
+      if(cells[nameCol]){cur=cells[nameCol].replace(/[①-⑳]+/g,'').trim();skip=cur in out;}
       const rec=cells[recCol];
-      if(cur&&rec&&rec!=='-')out[cur]=out[cur]?out[cur]+'\n'+rec:rec;
+      if(cur&&!skip&&rec&&rec!=='-')out[cur]=out[cur]?out[cur]+'\n'+rec:rec;
     }
   }
   return out;
@@ -1542,10 +1605,11 @@ async function sheetToText(file){
 // HWP 5.x 본문 → 표 구조를 살린 글자. 브라우저·node 공용 (CFB 읽기·압축 해제는 호출하는 쪽이 넘겨준다)
 // 레코드: 헤더 4바이트 = tag(10비트) | level(10비트) | size(12비트, 0xFFF면 다음 4바이트가 크기)
 // 병합칸이 많은 식단표는 칸 좌표가 생명이라(창원 HWP 밀림 사고), 칸마다 행·열·병합 범위를 붙여 넘긴다.
-function hwpSectionToText(buf){
+// 표는 칸 목록으로도 돌려준다 — 아는 양식 파서(knParse*)가 글자 대신 격자로 읽는다
+function hwpSectionParse(buf){
   const dv=new DataView(buf.buffer,buf.byteOffset,buf.byteLength);
   const TAG_PARA_TEXT=67,TAG_CTRL_HEADER=71,TAG_LIST_HEADER=72;
-  const out=[];const stack=[];let loose=[];
+  const out=[];const stack=[];let loose=[];const tables=[];
   const flushLoose=()=>{const t=loose.join(' ').trim();if(t)out.push(t);loose=[];};
   const paraText=(off,size)=>{
     let s='';
@@ -1563,7 +1627,7 @@ function hwpSectionToText(buf){
     return s;
   };
   const endTable=()=>{
-    const t=stack.pop();
+    const t=stack.pop();tables.push({no:t.no,cells:t.cells});
     const lines=[`<표 ${t.no}: ${t.cells.length}칸>`];
     const rows={};
     for(const c of t.cells){(rows[c.r]=rows[c.r]||[]).push(c);}
@@ -1585,6 +1649,7 @@ function hwpSectionToText(buf){
     const h=dv.getUint32(off,true);off+=4;
     const tag=h&0x3ff,level=(h>>>10)&0x3ff;let size=h>>>20;
     if(size===0xfff){size=dv.getUint32(off,true);off+=4;}
+    if(off+size>buf.length)break; // 잘린 본문: 끝 레코드에서 멈춘다(읽은 데까지만)
     // 표가 끝났는지: 표 머리보다 얕거나 같은 레벨의 레코드가 나오면 닫는다
     while(stack.length&&level<=stack[stack.length-1].level)endTable();
     if(tag===TAG_CTRL_HEADER&&size>=4){
@@ -1603,10 +1668,14 @@ function hwpSectionToText(buf){
   }
   while(stack.length)endTable();
   flushLoose();
-  return out.join('\n');
+  return{text:out.join('\n'),tables:tables.sort((a,b)=>a.no-b.no)};
 }
-// HWP 압축 본문은 끝에 여분 바이트가 붙어 있어, 브라우저 압축 해제기가 본문을 다 푼 뒤 'Junk found' 오류를 낸다 → 받은 만큼 쓴다
+function hwpSectionToText(buf){return hwpSectionParse(buf).text;}
+// HWP 압축 본문은 끝에 여분 바이트가 붙어 있다. 브라우저 압축 해제기(DecompressionStream)는 거기서 오류를 내며
+// 버퍼에 남은 마지막 조각까지 버린다(창원 8월: 156,630바이트 중 131,072만 나옴 → 표 뒷부분이 잘림).
+// 그래서 XLSX에 들어 있는 압축 해제기(끝까지 풀고 여분은 무시)를 먼저 쓰고, 없을 때만 브라우저 것을 쓴다
 async function inflateRaw(u8){
+  try{const x=XLSX.CFB.utils._inflateRaw(u8);if(x&&x.length)return new Uint8Array(x);}catch(e){}
   const rd=new Blob([u8]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader();
   const parts=[];let n=0;
   try{for(;;){const {value,done}=await rd.read();if(done)break;parts.push(value);n+=value.length;}}
@@ -1614,7 +1683,8 @@ async function inflateRaw(u8){
   const out=new Uint8Array(n);let o=0;for(const x of parts){out.set(x,o);o+=x.length;}
   return out;
 }
-async function hwpToText(file){
+async function hwpToText(file){return(await hwpRead(file)).text;}
+async function hwpRead(file){
   if(!window.XLSX)await loadScript(XLSX_JS); // XLSX 안의 CFB로 HWP 상자(OLE)를 연다
   const cfb=XLSX.CFB.read(new Uint8Array(await file.arrayBuffer()),{type:'array'});
   const get=p=>{const i=cfb.FullPaths.findIndex(x=>x.endsWith(p));return i<0?null:cfb.FileIndex[i];};
@@ -1624,13 +1694,331 @@ async function hwpToText(file){
   if(flags&2)throw{userMsg:'암호가 걸린 한글 파일이에요. 암호를 풀거나 PDF로 저장해서 올려 주세요.'};
   if(flags&4)throw{userMsg:'배포용 한글 파일은 읽을 수 없어요. 한글에서 PDF로 저장해서 올려 주세요.'};
   const secs=cfb.FullPaths.map((p,i)=>[p,i]).filter(([p])=>/BodyText\/Section\d+$/.test(p)).sort((a,b)=>a[0].localeCompare(b[0],undefined,{numeric:true}));
-  const out=[`--- ${file.name} ---`];
+  const out=[`--- ${file.name} ---`],tables=[];
   for(const [,i] of secs){
     let b=new Uint8Array(cfb.FileIndex[i].content);
     if(flags&1)b=await inflateRaw(b);
-    out.push(hwpSectionToText(b));
+    const r=hwpSectionParse(b);
+    out.push(r.text);tables.push(...r.tables);
   }
-  return out.join('\n');
+  return{text:out.join('\n'),tables};
+}
+// ── 아는 형식은 AI 없이 읽는다 ──
+// 센터가 만들어 여러 어린이집에 나눠 주는 표준 양식(동대문 표준조리법 PDF, 광진·창원 HWP)은
+// 칸 위치로 바로 읽는다. 몇 초면 끝나고 비용이 없다. 자체 점검에 걸리면 null을 돌려 AI로 넘긴다.
+
+const KN_SEC=['오전간식','점심','오후간식','저녁'];
+const KN_CIRC=/[①-⑳]/g;
+const knCircNums=s=>[...new Set((s.match(KN_CIRC)||[]).map(c=>c.charCodeAt(0)-0x245F))].sort((a,b)=>a-b);
+const knYmd=(y,m,d)=>`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+// pdf.js 한 쪽 → 글자 조각 + 칸 선. 칸 선은 1pt 두께로 채운 사각형이거나(동대문) 그은 선이다
+async function knPdfPage(page,OPS){
+  const tc=await page.getTextContent();
+  const items=tc.items.filter(i=>i.str&&i.str.trim()).map(i=>({s:i.str,x:i.transform[4],y:i.transform[5],w:i.width,h:i.height||Math.abs(i.transform[3])}));
+  const ol=await page.getOperatorList();
+  const H=[],V=[];let pend=[];
+  const edge=(x0,y0,x1,y1)=>{
+    const w=Math.abs(x1-x0),h=Math.abs(y1-y0);
+    if(h<=2&&w>2)H.push({y:(y0+y1)/2,x0:Math.min(x0,x1),x1:Math.max(x0,x1)});
+    else if(w<=2&&h>2)V.push({x:(x0+x1)/2,y0:Math.min(y0,y1),y1:Math.max(y0,y1)});
+  };
+  for(let i=0;i<ol.fnArray.length;i++){
+    const f=ol.fnArray[i],a=ol.argsArray[i];
+    if(f===OPS.constructPath){
+      pend=[];const ops=a[0],c=a[1];let k=0,px=0,py=0;
+      for(const o of ops){
+        if(o===OPS.rectangle){pend.push(['R',c[k],c[k+1],c[k+2],c[k+3]]);k+=4;}
+        else if(o===OPS.moveTo){px=c[k];py=c[k+1];k+=2;}
+        else if(o===OPS.lineTo){pend.push(['L',px,py,c[k],c[k+1]]);px=c[k];py=c[k+1];k+=2;}
+        else if(o===OPS.curveTo)k+=6;else if(o===OPS.curveTo2||o===OPS.curveTo3)k+=4;
+      }
+    }else if(f===OPS.fill||f===OPS.eoFill||f===OPS.stroke||f===OPS.fillStroke||f===OPS.eoFillStroke||f===OPS.closeStroke||f===OPS.closeFillStroke){
+      for(const p of pend){
+        if(p[0]==='L')edge(p[1],p[2],p[3],p[4]);
+        else{const [,x,y,w,h]=p;const x0=Math.min(x,x+w),x1=Math.max(x,x+w),y0=Math.min(y,y+h),y1=Math.max(y,y+h);
+          if(x1-x0<=2||y1-y0<=2)edge(x0,y0,x1,y1);
+          else if(f!==OPS.fill&&f!==OPS.eoFill){edge(x0,y0,x1,y0);edge(x0,y1,x1,y1);edge(x0,y0,x0,y1);edge(x1,y0,x1,y1);}}
+      }
+      pend=[];
+    }else if(f===OPS.endPath)pend=[];
+  }
+  return{items,H,V};
+}
+
+// 칸 선으로 열을 세우고, 열마다 그 열을 가로지르는 가로선으로 칸을 나눈다(병합칸이 저절로 풀린다)
+function knCells(pg){
+  const xs=[];for(const v of pg.V){if(!xs.some(x=>Math.abs(x-v.x)<2))xs.push(v.x);}
+  xs.sort((a,b)=>a-b);
+  if(xs.length<3)return null;
+  const top=Math.max(...pg.V.map(v=>v.y1)),bot=Math.min(...pg.V.map(v=>v.y0));
+  const cols=[];
+  for(let i=0;i+1<xs.length;i++){
+    const x0=xs[i],x1=xs[i+1],mid=(x0+x1)/2;
+    const ys=[top,bot];
+    for(const h of pg.H)if(h.x0-1<=mid&&h.x1+1>=mid&&h.y<=top+2&&h.y>=bot-2&&!ys.some(y=>Math.abs(y-h.y)<1.5))ys.push(h.y);
+    ys.sort((a,b)=>b-a);
+    const bands=[];for(let j=0;j+1<ys.length;j++)bands.push({y1:ys[j],y0:ys[j+1],its:[]});
+    cols.push({x0,x1,bands});
+  }
+  const above=[];
+  for(const it of pg.items){
+    const cx=it.x+it.w/2,cy=it.y+it.h*0.3;
+    const col=cols.find(c=>cx>=c.x0&&cx<c.x1);
+    const band=col&&col.bands.find(b=>cy<=b.y1&&cy>b.y0);
+    if(band)band.its.push(it);else above.push(it);
+  }
+  const txt=its=>{
+    const rows=[];for(const it of [...its].sort((a,b)=>b.y-a.y||a.x-b.x)){const r=rows.find(r=>Math.abs(r.y-it.y)<3);if(r)r.its.push(it);else rows.push({y:it.y,its:[it]});}
+    return rows.map(r=>r.its.sort((a,b)=>a.x-b.x).map(i=>i.s).join('')).join('\n').trim();
+  };
+  for(const c of cols)for(const b of c.bands)b.t=txt(b.its);
+  return{cols,loose:txt(above)};
+}
+
+// 표준조리법 PDF(날짜|끼니|음식명|식재료명|식재료량|조리방법). 음식명 칸 하나가 메뉴 하나다
+function knParseStdRecipe(pages){
+  let title='',idx=null,year=0,month=0;
+  const items=[],notes=[],problems=[];
+  let curDate=null,curSec=null,guess=false;
+  for(const pg of pages){
+    const g=knCells(pg);if(!g)continue;
+    // 제목 줄([2026년10월 [동대문구센터] 일반식 (1-2세)])은 표 테두리 안쪽 맨 위에 걸려 있기도 하다
+    const head=[g.loose,...g.cols.map(c=>c.bands[0]&&c.bands[0].t||'')].find(t=>/\d{4}\s*년\s*\d{1,2}\s*월/.test(t))||'';
+    const m=head.match(/(\d{4})\s*년\s*(\d{1,2})\s*월/);
+    if(m&&!year){year=+m[1];month=+m[2];title=head.replace(/[\[\]]/g,' ').replace(/\d{4}\s*년\s*\d{1,2}\s*월/,'').replace(/\s+/g,' ').trim();}
+    // 머리글 칸에서 열 위치를 찾는다. 머리글이 없는 쪽은 앞쪽에서 찾은 위치를 쓴다
+    const find=re=>g.cols.findIndex(c=>c.bands.some(b=>re.test(b.t.replace(/\s/g,''))));
+    const hi={date:find(/^날짜$/),sec:find(/^(끼니|구분)$/),name:find(/^(음식명|메뉴명)$/),rec:find(/^조리방법$/)};
+    if(hi.date>=0&&hi.sec>=0&&hi.name>=0&&hi.rec>=0)idx={...hi,xs:g.cols.map(c=>c.x0)};
+    if(!idx)return null;
+    if(g.cols.length!==idx.xs.length||g.cols.some((c,i)=>Math.abs(c.x0-idx.xs[i])>3)){problems.push('쪽마다 열 위치가 달라요');return null;}
+    const at=(ci,y)=>g.cols[ci].bands.find(b=>y<=b.y1&&y>b.y0);
+    for(const nb of g.cols[idx.name].bands){
+      const mid=(nb.y0+nb.y1)/2;
+      const db=at(idx.date,mid),sb=at(idx.sec,mid),rb=at(idx.rec,mid);
+      const dt=(db&&db.t||'').replace(/\s/g,''),st=(sb&&sb.t||'').replace(/\s/g,'');
+      if(/^날짜/.test(dt)||/^(음식명|메뉴명)$/.test(nb.t.replace(/\s/g,'')))continue;
+      // 날짜·끼니 칸은 여러 메뉴에 걸친 병합칸이라, 칸의 맨 위 메뉴에서만 값이 바뀐다
+      if(db&&Math.abs(db.y1-nb.y1)<1.5){
+        const dm=dt.match(/^(\d{1,2})\[([월화수목금토일])\]/);
+        if(dm){curDate=+dm[1];guess=false;}
+        else if(dt){curDate=null;notes.push(`날짜가 아닌 묶음은 건너뛰었어요: ${dt.slice(0,20)}`);}
+      }
+      // 끼니 칸은 메뉴 칸 위쪽과 딱 맞지 않을 때가 있다(6/24) → 메뉴 칸 가운데를 품은 끼니 칸의 글자를 쓰고, 빈 칸(쪽 넘김 이어짐)이면 앞 끼니를 이어 쓴다
+      if(st){if(KN_SEC.includes(st)){curSec=st;guess=false;}else{problems.push(`모르는 끼니: ${st}`);}}
+      // 끼니 칸이 새로 시작하는데 이름이 비어 있으면(원본 6/24 점심 칸이 빈칸) 순서상 다음 끼니로 넣고 ⚠️
+      else if(sb&&sb.y1<g.cols[idx.sec].bands[0].y1-1&&Math.abs(sb.y1-nb.y1)<1.5&&curSec&&KN_SEC.indexOf(curSec)<KN_SEC.length-1){curSec=KN_SEC[KN_SEC.indexOf(curSec)+1];guess=true;}
+      if(!nb.t)continue;
+      if(curDate==null||!curSec){if(curDate!=null)problems.push(`끼니 없는 메뉴: ${nb.t}`);continue;}
+      const name=nb.t.replace(KN_CIRC,'').replace(/\s+/g,'');
+      if(!name){problems.push(`이름 없는 메뉴 칸: ${nb.t}`);continue;}
+      let rec=(rb&&Math.abs(rb.y1-nb.y1)<1.5?rb.t:'').split('\n');
+      // 위 메모가 줄바꿈되며 넘어온 원문자만 있는 줄은 조리법이 아니다(10/10 단감 ⑯)
+      while(rec.length&&/^[①-⑳\s]+$/.test(rec[0])&&rec[0].trim())rec.shift();
+      rec=rec.join('\n').trim();if(rec==='-')rec='';
+      // 위 칸 조리법의 둘째 줄 이후가 아래 칸에 한 번 더 찍힌 경우(8/22 깍두기 → 우유)
+      const prev=items[items.length-1];
+      if(rec&&prev&&prev.day===curDate&&prev.recipe&&rec!==prev.recipe&&prev.recipe.split('\n').slice(1).map(s=>s.trim()).includes(rec))rec='';
+      // 원문자만 있는 조각이 같은 줄 글자와 높이가 살짝 어긋나 있으면 이웃 칸에서 넘어온 것일 수 있다(10/7 물만두 ⑯⑱이 깍두기 옆에 찍힘)
+      const stray=nb.its.filter(it=>/^[①-⑳\s]+$/.test(it.s)&&nb.its.some(o=>o!==it&&Math.abs(o.y-it.y)>0.3&&Math.abs(o.y-it.y)<3)).map(it=>it.s.replace(/\s/g,'')).join('');
+      items.push({day:curDate,sec:curSec,name,allergy:knCircNums(nb.t),recipe:rec,stray,...(guess?{chk:true,why:`원본에 끼니 이름이 비어 있어 ${curSec}으로 넣었어요. 끼니를 확인해 주세요`}:{})});
+    }
+  }
+  // 어긋난 번호는 버리지 않고 같은 날 위·아래 메뉴에도 붙여 ⚠️로 올린다. 빠진 번호보다 남는 번호가 안전하다
+  items.forEach((it,i)=>{
+    if(!it.stray)return;
+    const near=[i-1,i,i+1].map(j=>items[j]).filter(o=>o&&o.day===it.day);
+    const why=`원본에서 ${it.stray} 번호가 ${it.name} 옆에 줄이 어긋나 찍혀 있어요. ${near.map(o=>o.name).join(', ')} 중 어느 메뉴 것인지 확인하고 아닌 곳은 빼 주세요`;
+    for(const o of near){o.allergy=[...new Set([...o.allergy,...knCircNums(it.stray)])].sort((a,b)=>a-b);o.chk=true;o.why=why;}
+  });
+  if(!idx||!year)return null;
+  // 쪽이 넘어가며 같은 메뉴가 두 번 잡히면 하나로(조리법 있는 쪽을 살린다)
+  const seen={},out=[];
+  for(const it of items){const k=`${it.day}|${it.sec}|${it.name}`;if(seen[k]){if(!seen[k].recipe&&it.recipe)seen[k].recipe=it.recipe;continue;}seen[k]=it;out.push(it);}
+  return{kind:'표준조리법 PDF',title,year,month,items:out.map(it=>({date:knYmd(year,month,it.day),sec:it.sec,name:it.name,allergy:it.allergy,recipe:it.recipe,chk:!!it.chk,why:it.why||''})),notes,problems};
+}
+
+
+// ── HWP 표 → 격자. 병합칸은 파이썬 파서(hwp5html)와 같이: 시작 칸에 글자, 옆으로 병합된 칸은 '', 아래로 병합된 칸은 같은 글자를 이어 받는다 ──
+function knGrid(cells){
+  const g=[];
+  for(const c of cells){
+    const t=c.t.join(' ').replace(/\s+/g,' ').trim();
+    for(let r=c.r;r<c.r+c.rs;r++){
+      const row=g[r]=g[r]||{};
+      for(let k=c.c;k<c.c+c.cs;k++)row[k]=k===c.c?t:'';
+    }
+  }
+  for(let r=0;r<g.length;r++)g[r]=g[r]||{};
+  return g;
+}
+const knRowText=row=>Object.keys(row).map(Number).sort((a,b)=>a-b).map(k=>row[k]).filter(Boolean).join(' ');
+// 날짜 칸의 요일로 달을 정한다. 앞뒤 달 날짜가 같은 표에 끼어 있다(광진 9월 표의 31(월) = 8/31)
+function knDate(y,m,d,dow){
+  const W='일월화수목금토';
+  for(const dm of [0,-1,1]){const dt=new Date(y,m-1+dm,d);if(dt.getDate()===d&&W[dt.getDay()]===dow)return{ymd:knYmd(dt.getFullYear(),dt.getMonth()+1,d),other:dm!==0};}
+  return null;
+}
+function knYearMonth(tables){
+  const all=tables.map(t=>knGrid(t.cells).map(knRowText).join(' ')).join(' ');
+  const m=all.match(/(\d{4})\s*년\s*(\d{1,2})\s*월\s*\S{0,6}식단/)||all.match(/(\d{4})\s*년\s*(\d{1,2})\s*월/);
+  return m?{year:+m[1],month:+m[2]}:null;
+}
+function knSplitTop(t){const parts=[];let buf='',dep=0;for(const ch of t){if(ch==='(')dep++;else if(ch===')')dep=Math.max(0,dep-1);if(ch==='/'&&!dep){parts.push(buf);buf='';}else buf+=ch;}parts.push(buf);return parts.map(s=>s.trim()).filter(Boolean);}
+
+// 광진 HWP: 머리글 '일자', 날짜 '1(목)', 알레르기 '(5,6)', 메뉴가 행마다 한 칸씩 세로로 쌓이고 끼니 라벨과 병합 경계가 어긋난다
+function knParseGwangjin(tables){
+  const ym=knYearMonth(tables);if(!ym)return null;
+  const DATE=/^(\d{1,2})\s*\(([월화수목금토일])\)/,KCAL=/^[\d.]+\s*\/\s*[\d.]+$/,AL=/\(\s*\d+(?:\s*,\s*\d+)*\s*\)/g,ALT=/\s+\((.+)\)$/;
+  const grid=tables.map(t=>knGrid(t.cells)).sort((a,b)=>b.length-a.length)[0];
+  if(!grid)return null;
+  const heads=grid.map((row,i)=>Object.values(row).some(v=>v==='일자')?i:-1).filter(i=>i>=0);
+  if(!heads.length)return null;
+  const strip=t=>{const nums=[];for(const g of t.match(AL)||[])nums.push(...g.match(/\d+/g).map(Number));return{name:t.replace(AL,'').replace(/\s+/g,' ').trim(),allergy:[...new Set(nums)].sort((a,b)=>a-b)};};
+  const items=[],notes=[],problems=[];
+  heads.forEach((hr,bi)=>{
+    const end=bi+1<heads.length?heads[bi+1]:grid.length;
+    const dateCols=[];
+    for(const [c,v] of Object.entries(grid[hr])){const m=(v||'').match(DATE);if(m)dateCols.push({c:+c,d:+m[1],w:m[2]});}
+    const secBy={};
+    for(let r=hr+1;r<end;r++){const l=(grid[r][0]||'').replace(/\s/g,'');if(l.startsWith('열량'))break;if(KN_SEC.includes(l))secBy[r]=l;}
+    const body=Object.keys(secBy).map(Number).sort((a,b)=>a-b);
+    if(!body.length)return;
+    for(const dc of dateCols){
+      const dt=knDate(ym.year,ym.month,dc.d,dc.w);
+      if(!dt){problems.push(`날짜를 못 맞춤: ${dc.d}(${dc.w})`);continue;}
+      if(dt.other){notes.push(`${dt.ymd}은 다른 달 날짜라 뺐어요`);continue;}
+      // 같은 글자가 이어지는 행 = 병합칸 하나 → 걸친 행의 끼니 라벨 다수결(동수면 뒤 끼니)
+      const runs=[];let prev=null,start=null,last=null;
+      for(const r of [...body,null]){
+        const cur=r==null?null:(grid[r][dc.c]||'').replace(/\s+/g,' ').trim();
+        if(cur!==prev){if(prev)runs.push([prev,start,last]);prev=cur;start=r;}
+        last=r;
+      }
+      const day=[];
+      for(const [text,r0,r1] of runs){
+        const cnt={};for(const r of body)if(r>=r0&&r<=r1)cnt[secBy[r]]=(cnt[secBy[r]]||0)+1;
+        const sec=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]||KN_SEC.indexOf(b)-KN_SEC.indexOf(a))[0];
+        if(KCAL.test(text))continue;
+        for(let part of knSplitTop(text)){
+          let alt=null;const m=part.match(ALT);
+          if(m&&/[가-힣]/.test(m[1].replace(AL,''))){alt=m[1].trim();part=part.slice(0,m.index).trim();}
+          const a=strip(part);if(!a.name)continue;
+          day.push({date:dt.ymd,sec,...a});
+          if(alt){const b=strip(alt);if(b.name)day.push({date:dt.ymd,sec,name:`${b.name} (대체)`,allergy:b.allergy});}
+        }
+      }
+      day.sort((a,b)=>KN_SEC.indexOf(a.sec)-KN_SEC.indexOf(b.sec));
+      items.push(...day);
+    }
+  });
+  const title=(knGrid(tables[0].cells).map(knRowText).join(' ').match(/<[^>]*>/)||[''])[0].replace(/[<>]/g,'').trim();
+  return{kind:'광진 HWP',title:title?`광진 ${title}`:'광진 식단',year:ym.year,month:ym.month,items,notes,problems};
+}
+
+// 창원 HWP: 머리글 '날짜'/'일자', 날짜 '3 [월]', 끼니 행마다 칸 안에 메뉴가 공백·줄바꿈으로 나열, 알레르기는 원문자
+function knParseChangwon(tables){
+  const ym=knYearMonth(tables);if(!ym)return null;
+  const HDR=['날짜','일자'],DATE=/^(\d{1,2})\s*\[([월화수목금토일])\]/;
+  const isHead=row=>Object.values(row).some(v=>HDR.includes(v));
+  // 같은 파일에 조리공정표처럼 날짜 격자가 하나 더 있다 → 바로 위 제목 표에 '식단표'가 있는 격자만 쓴다
+  const gs=tables.map(t=>knGrid(t.cells));let title='';const grids=[];
+  for(const g of gs){
+    if(g.some(isHead)&&g.some(row=>Object.values(row).some(v=>DATE.test(v||'')))){if(/식단표/.test(title))grids.push({g,title});}
+    else title=g.map(knRowText).join(' ');
+  }
+  if(!grids.length)return null;
+  // 연령별 표가 여럿이면(7월: 1-2세·3-5세) 표마다 결과를 따로 만들고 부모가 고른다
+  const res=grids.map(({g,title})=>knChangwonGrid(g,title,ym,isHead,DATE));
+  return res.length===1?res[0]:res;
+}
+function knChangwonGrid(grid,gtitle,ym,isHead,DATE){
+  const items=[],notes=[],problems=[];
+  const cell=(raw,sec,date)=>{
+    const out=[];let pre='',or=false;
+    const add=(o,al)=>{for(const x of al)if(!o.allergy.includes(x))o.allergy.push(x);};
+    for(const tok of raw.split(/\s+/).filter(Boolean)){
+      const al=knCircNums(tok);let name=tok.replace(KN_CIRC,'').trim();
+      const last=out[out.length-1];
+      if(!name){if(last)add(last,al);else problems.push(`${date} 번호만 있는 조각: ${tok}`);continue;}
+      if(name.startsWith('(')&&name.endsWith(')')){
+        if(name.includes('제외')){pre+=name;continue;}
+        if(last){last.name+=name;add(last,al);continue;}
+      }
+      if(name==='또는'&&last){or=true;continue;}
+      if(last&&last.name.endsWith('&')){last.name+=name;add(last,al);continue;}
+      if(pre){name=pre+name;pre='';}
+      if(or){last.name+=' 또는 '+name;add(last,al);or=false;continue;}
+      out.push({date,sec,name,allergy:al});
+    }
+    if(pre&&out.length)out[out.length-1].name+=pre;
+    out.forEach(o=>o.allergy.sort((a,b)=>a-b));
+    return out;
+  };
+  for(let i=0;i<grid.length;){
+    if(!isHead(grid[i])){i++;continue;}
+    const dateCols=[];
+    for(const c of Object.keys(grid[i]).map(Number).sort((a,b)=>a-b)){const m=(grid[i][c]||'').match(DATE);if(m)dateCols.push({c,d:+m[1],w:m[2]});}
+    const block={};let j=i+1;
+    for(;j<grid.length&&!isHead(grid[j]);j++){
+      for(const k of Object.keys(grid[j]).map(Number).sort((a,b)=>a-b)){const l=(grid[j][k]||'').replace(/\s/g,'');if(['오전간식','점심','오후간식'].includes(l)){block[l]=grid[j];break;}}
+    }
+    for(const dc of dateCols){
+      const dt=knDate(ym.year,ym.month,dc.d,dc.w);
+      if(!dt){problems.push(`날짜를 못 맞춤: ${dc.d}[${dc.w}]`);continue;}
+      if(dt.other){notes.push(`${dt.ymd}은 다른 달 날짜라 뺐어요`);continue;}
+      for(const sec of ['오전간식','점심','오후간식'])if(block[sec]&&block[sec][dc.c])items.push(...cell(block[sec][dc.c],sec,dt.ymd));
+    }
+    i=j;
+  }
+  const age=(gtitle.match(/\d\s*-\s*\d\s*세/)||[''])[0].replace(/\s/g,'');
+  return{kind:'창원 HWP',title:`창원 ${age} 식단`.replace(/\s+/g,' '),year:ym.year,month:ym.month,items,notes,problems};
+}
+
+// 자체 점검: 하나라도 걸리면 null → AI로 넘긴다. 번호 이상처럼 메뉴 하나의 문제는 버리지 않고 ⚠️로 올린다
+function knCheck(r){
+  if(!r||!r.year||!(r.month>=1&&r.month<=12)||r.problems.length)return null;
+  const mk=`${r.year}-${String(r.month).padStart(2,'0')}`;
+  const items=r.items.filter(it=>it.date.startsWith(mk)&&it.name);
+  if(items.length<10||items.length!==r.items.length)return null;
+  const days=[...new Set(items.map(i=>i.date))];
+  let wk=0;for(let d=1;d<=31;d++){const dt=new Date(r.year,r.month-1,d);if(dt.getMonth()!==r.month-1)break;if(dt.getDay()>0&&dt.getDay()<6)wk++;}
+  if(days.length<wk*0.6)return null;                                   // 평일 대부분이 있어야 한 달치
+  if(days.some(d=>!items.some(i=>i.date===d&&i.sec==='점심')))return null; // 날마다 점심은 있어야 칸을 제대로 읽은 것
+  if(items.some(i=>new Date(i.date+'T00:00:00').getDay()===0))return null;
+  for(const it of items){
+    if(it.allergy.some(n=>n<1||n>19)){it.allergy=it.allergy.filter(n=>n>=1&&n<=19);it.chk=true;it.why='19번 밖의 번호(⑳ 기타 등)가 있어요. 원본에서 무엇인지 확인해 주세요';}
+    if(it.name.length>40){it.chk=true;it.why=it.why||'메뉴 이름이 너무 길어요. 두 메뉴가 붙었는지 확인해 주세요';}
+  }
+  return{...r,items};
+}
+// 아는 양식을 모두 시도해 점검을 통과한 결과만 돌려준다(연령별 표가 여럿이면 여러 개)
+function knRun(src){
+  const out=[];
+  const tryOne=f=>{let r=null;try{r=f();}catch(e){r=null;}for(const x of [].concat(r||[])){const c=knCheck(x);if(c)out.push(c);}};
+  if(src.pages)tryOne(()=>knParseStdRecipe(src.pages));
+  if(src.tables){tryOne(()=>knParseGwangjin(src.tables));if(!out.length)tryOne(()=>knParseChangwon(src.tables));}
+  return out;
+}
+
+// 파일마다 아는 양식인지 보고, 점검을 통과한 첫 파일의 결과를 쓴다(연령별 표가 여럿이면 여러 개)
+async function knTry(files){
+  for(const f of files){
+    let src=null;
+    try{
+      if(/\.pdf$/i.test(f.name)||f.type==='application/pdf'){
+        const lib=await pdfjs();
+        const doc=await lib.getDocument({data:new Uint8Array(await f.arrayBuffer())}).promise;
+        const pages=[];for(let p=1;p<=doc.numPages;p++)pages.push(await knPdfPage(await doc.getPage(p),lib.OPS));
+        src={pages};
+      }else if(/\.hwp$/i.test(f.name))src={tables:(await hwpRead(f)).tables};
+    }catch(e){src=null;}
+    if(!src)continue;
+    const r=knRun(src);
+    if(r.length)return r;
+  }
+  return null;
 }
 async function fileToText(f){
   if(/\.pdf$/i.test(f.name)||f.type==='application/pdf')return pdfToText(f);
@@ -1647,16 +2035,25 @@ async function startUpload(){
   if(!files.length){err.textContent=upFiles.length?'새 한글 형식(HWPX)은 아직 못 읽어요. 한글에서 HWP나 PDF로 저장해서 올려 주세요.':'파일을 골라 주세요.';return;}
   upStep('work');
   $u('upWorkTitle').textContent='파일을 읽고 있어요';
-  $u('upWorkDesc').textContent='1분쯤 걸려요. 다른 앱으로 넘어가면 처음부터 다시 해야 해요.';
+  $u('upWorkDesc').textContent='잠시만 기다려 주세요.';
+  let menuFiles=[];
   try{
-    const parts=[];upRecipes={};
-    const menuFiles=[];
+    upRecipes={};
     for(const f of files){
       if(/\.(xlsx|xls)$/i.test(f.name)){const rec=await readRecipeSheets(f);if(Object.keys(rec).length){Object.assign(upRecipes,rec);continue;}}
       menuFiles.push(f);
     }
     // 레시피 엑셀만 올렸으면(광진처럼 날짜별 메뉴가 레시피 파일에 들어 있는 경우) 그걸 식단으로 읽는다
-    for(const f of (menuFiles.length?menuFiles:files))parts.push(await fileToText(f));
+    if(!menuFiles.length)menuFiles=files;
+  }catch(e){return upFail(e&&e.userMsg||'파일을 열지 못했어요. 암호가 걸린 파일인지 확인해 주세요.');}
+  // 센터 표준 양식이면 AI 없이 바로 읽는다(몇 초, 비용 0). 모르는 양식이거나 자체 점검에 걸리면 AI로
+  const known=await knTry(menuFiles);
+  if(upStepNow!=='work')return; // 그사이 취소
+  if(known)return known.length>1?knChoose(known):knShow(known[0]);
+  $u('upWorkDesc').textContent='1분쯤 걸려요. 다른 앱으로 넘어가면 처음부터 다시 해야 해요.';
+  try{
+    const parts=[];
+    for(const f of menuFiles)parts.push(await fileToText(f));
     upText=parts.filter(Boolean).join('\n\n');
   }catch(e){return upFail(e&&e.userMsg||'파일을 열지 못했어요. 암호가 걸린 파일인지 확인해 주세요.');}
   if(upText.replace(/\[x=\d+\]|---.*---|\s/g,'').length<50)return upFail('파일에서 글자를 거의 못 읽었어요. 사진을 찍어 만든(스캔) PDF는 아직 못 읽어요.');
@@ -1702,6 +2099,24 @@ async function startUpload(){
   upStep('review');
 }
 function cancelUpload(){if(upAbort)upAbort.abort();upStep('pick');}
+// 아는 양식 결과 → 확인 화면. AI 결과와 같은 모양으로 맞춘다(조리법은 같은 행에서 온 것이 먼저, 없으면 레시피 엑셀에서)
+function knShow(r){
+  upResult=normalizeResult({title:r.title,year:r.year,month:r.month,notes:r.notes,items:r.items.map(it=>({...it,check:it.chk}))});
+  const byKey={};r.items.forEach(it=>{byKey[it.date+'|'+it.sec+'|'+it.name]=it.recipe;});
+  upResult.items.forEach(it=>{const rec=byKey[it.date+'|'+it.sec+'|'+it.name];if(rec)it.recipe=rec;});
+  upResult.kind=r.kind;
+  renderReview();
+  renderSaveTo();
+  upStep('review');
+}
+// 한 파일에 연령별 식단이 여럿이면(창원 7월: 1-2세·3-5세) 아이 반을 고른다
+function knChoose(list){
+  $u('upWorkTitle').textContent='어느 반 식단인가요?';
+  $u('upWorkDesc').innerHTML='이 파일에 여러 반의 식단이 들어 있어요.<div class="up-choose"></div>';
+  const box=$u('upWorkDesc').querySelector('.up-choose');
+  list.forEach(r=>{const b=document.createElement('button');b.type='button';b.className='st-save-btn';b.textContent=r.title;b.onclick=()=>knShow(r);box.appendChild(b);});
+  $u('upWork').querySelector('.up-spin').hidden=true;
+}
 function upFail(msg){upStep('pick');$u('upErr').textContent=msg;}
 
 // AI 결과를 앱 형식으로 다듬는다. 이상한 값은 버리지 않고 ⚠️로 올린다
@@ -1725,7 +2140,7 @@ function renderReview(){
   const r=upResult;
   const days=[...new Set(r.items.map(i=>i.date))];
   const chks=r.items.filter(i=>i.chk);
-  $u('upSum').innerHTML=`<strong>${r.year}년 ${r.month}월</strong> · ${days.length}일, 메뉴 ${r.items.length}개를 찾았어요.<br><span style="color:var(--text2);font-size:.82rem">원본 식단표를 옆에 두고 알레르기 번호를 대조해 주세요. 메뉴를 누르면 고칠 수 있어요.</span>`;
+  $u('upSum').innerHTML=`<strong>${r.year}년 ${r.month}월</strong> · ${days.length}일, 메뉴 ${r.items.length}개를 찾았어요.<br>${r.kind?'<span style="color:var(--text2);font-size:.82rem">센터 표준 양식이라 AI 없이 칸 위치 그대로 읽었어요.</span><br>':''}<span style="color:var(--text2);font-size:.82rem">원본 식단표를 옆에 두고 알레르기 번호를 대조해 주세요. 메뉴를 누르면 고칠 수 있어요.</span>`;
   const w=$u('upWarn');
   w.hidden=!chks.length;
   w.innerHTML=chks.length?`<b>⚠️ 꼭 확인할 메뉴 ${chks.length}개</b> — 아래 붉은 칸이에요. AI가 확신하지 못한 곳이에요.`:'';
