@@ -1514,6 +1514,8 @@ function renderMine(){
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
+  // iOS는 accept를 시스템 파일 유형으로 바꾸는데 .hwp 유형이 없어 HWP가 회색으로 막힌다 → iOS에선 필터를 뺀다(형식 판별은 파일 이름으로 함)
+  if(/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1))$u('upFile').removeAttribute('accept');
   $u('upFile').addEventListener('change',e=>{
     upFiles=[...e.target.files];
     const ul=$u('upFiles');ul.innerHTML='';
