@@ -1,6 +1,7 @@
 // POST /parse
 // 부모가 올린 식단표에서 브라우저가 뽑은 텍스트를 받아, Claude로 날짜·끼니·메뉴·알레르기를 구조화한다.
-// 파일 자체는 받지 않는다(텍스트만). 저장도 하지 않는다 — 결과는 부모 기기 localStorage에만 남는다.
+// 사진·스캔 PDF는 글자가 없으니 브라우저가 줄인 그림(images)을 보내고 Claude 비전으로 읽는다(2026-10-13).
+// 저장은 하지 않는다 — 결과는 부모 기기 localStorage에만 남는다.
 //
 // 응답: 성공이면 Anthropic SSE 스트림을 그대로 넘긴다(브라우저가 text_delta를 이어 붙인다).
 //        실패면 {"error":"사람이 읽을 문장"} JSON + 4xx/5xx.
@@ -16,6 +17,9 @@
 // 속도 우선(2026-10-08): Opus로 한 달치 3~5분 → 부모가 기다리다 나간다. 정확도는 동대문 정답지로 재검증
 const MODEL = "claude-opus-5-5";
 const MAX_INPUT_CHARS = 120_000;
+// 그림: 한 달치 식단표는 1~2쪽. 브라우저가 긴 변 2000px JPEG로 줄여 보내므로 한 장 1MB면 넉넉하다
+const MAX_IMAGES = 4;
+const MAX_IMAGE_B64 = 1_500_000;
 
 const AN = {1:"난류(계란)",2:"우유",3:"메밀",4:"땅콩",5:"대두",6:"밀",7:"고등어",8:"게",9:"새우",10:"돼지고기",11:"복숭아",12:"토마토",13:"아황산류",14:"호두",15:"닭고기",16:"쇠고기",17:"오징어",18:"조개류",19:"잣"};
 
@@ -66,7 +70,20 @@ const SYSTEM = `너는 어린이집 식단표를 구조화하는 도구다. 알�
 - 날짜가 없는 특별식(생일식단 등)은 items에 넣지 말고 notes에 적는다. 휴일·빈 칸은 만들지 않는다.
 - 여러 연령(1-2세/3-5세)이 섞여 있으면: 연령이 지정됐으면 그 연령만 뽑고 notes에 적는다. 지정되지 않았으면 모든 항목을 그대로 뽑되 전부 check=true, why="여러 연령이 섞인 식단표예요. 우리 아이 반 것인지 확인하세요"로 하고 notes 맨 앞에도 적는다.
 - 텍스트에 [떨어진번호]가 붙은 칸은 원문자 알레르기 번호가 줄바꿈되어 메뉴명에서 떨어져 나온 조각이다. 같은 줄 앞 메뉴 것이라고 단정하지 마라 — 표에서 아래·위 줄 메뉴의 번호가 이어진 것일 수 있다. 가장 그럴듯한 메뉴에 붙이되, 그 조각과 같은 줄·바로 위 줄·바로 아래 줄의 메뉴는 모두 check=true로 하고 why에 "떨어진 번호(⑯⑱ 등)가 어느 메뉴 것인지 원본 확인"을 적는다. 조각을 버리지 않는다.
-- 조리법은 옮기지 않는다(앱이 따로 붙인다). 원본에 조리법이 섞여 있어도 메뉴명과 알레르기만 뽑는다.`;
+- 조리법은 옮기지 않는다(앱이 따로 붙인다). 원본에 조리법이 섞여 있어도 메뉴명과 알레르기만 뽑는다.
+- 한 칸 안의 'A vs B'(자율선택급식 등)는 고르는 메뉴이므로 '또는'처럼 한 항목으로 두고, 양쪽 번호를 합쳐 넣는다.
+- 영양 정보(kcal·단백질 등 숫자 줄), 원산지표, QR 안내, 반찬 없는 행사 문구는 메뉴가 아니다.`;
+
+// 그림으로 받았을 때만 덧붙이는 규칙. 사진은 텍스트보다 오독 위험이 크다
+const SYSTEM_IMAGE = `
+
+입력이 식단표 그림(휴대폰 사진·스캔)이다.
+- 표의 칸 경계를 먼저 잡고, 날짜 머리칸 아래 같은 칸에 든 메뉴만 그 날짜로 묶어라. 사진이 기울었거나 휘어 있어도 칸 단위로 읽는다.
+- 알레르기 번호는 숫자 하나하나를 확인한다. 흐리거나, 잘렸거나, 그림자·반사로 가려졌거나, 비슷한 숫자(1과 7, 3과 8, 5와 6, 13과 18 등)로 헷갈릴 여지가 조금이라도 있으면 읽은 대로 넣되 check=true, why에 "번호가 흐려요. 원본에서 (N) 확인" 식으로 적는다. 메뉴명 글자가 불확실해도 check=true.
+- 사진 밖으로 잘려 안 보이는 날짜·칸이 있으면 지어내지 말고 notes에 "N일 칸이 사진에서 잘렸어요"처럼 적는다.
+- 식단표에 알레르기 범례(①난류 ②우유 …)가 있으면 위 표준 번호와 하나씩 비교하라. 표기만 다르고 같은 뜻(아황산염/아황산류, 계란/난류)은 차이가 아니다. 어느 번호든 뜻이 다르면 notes 맨 앞에 "이 식단표는 ⑱=전복, ⑲=홍합으로 적었어요(표준은 ⑱조개류, ⑲잣). 앱은 표준 번호로 보여 줘요"처럼 적는다. 번호는 원본 그대로 둔다.
+  · 원본 뜻이 표준 뜻 안에 들어가면(⑱전복은 조개류의 하나) notes에만 적고 항목은 check하지 않는다. 표준으로 보여 줘도 빠뜨리는 쪽으로 틀리지 않는다.
+  · 들어가지 않으면(⑲홍합인데 표준 ⑲은 잣) 그 번호가 붙은 항목을 모두 check=true, why에 "원본 ⑲는 홍합이에요(앱에선 잣으로 보여요)"처럼 적는다.`;
 
 export default {
   async fetch(request, env, ctx) {
@@ -90,7 +107,13 @@ export default {
     // 반은 묻지 않는다 — 부모가 올리는 파일이 곧 우리 아이 반 식단이다. 예전 앱이 보내는 값만 존중한다
     const age = body.age === "toddler" ? "3-5세(유아반)" : body.age === "infant" ? "1-2세(영아반)" : "";
     const hint = String(body.hint || "").slice(0, 100);
-    if (text.trim().length < 50) return fail("파일에서 글자를 거의 못 읽었어요. 스캔 이미지 PDF일 수 있어요.", 400, cors);
+    const images = Array.isArray(body.images) ? body.images : [];
+    if (images.length > MAX_IMAGES) return fail(`사진은 ${MAX_IMAGES}장까지 올릴 수 있어요.`, 413, cors);
+    for (const im of images) {
+      if (!im || !/^image\/(jpeg|png|webp)$/.test(im.media_type) || typeof im.data !== "string") return fail("사진 형식을 읽지 못했어요.", 400, cors);
+      if (im.data.length > MAX_IMAGE_B64) return fail("사진이 너무 커요. 다시 시도해 주세요.", 413, cors);
+    }
+    if (!images.length && text.trim().length < 50) return fail("파일에서 글자를 거의 못 읽었어요. 스캔 이미지 PDF일 수 있어요.", 400, cors);
     if (text.length > MAX_INPUT_CHARS) return fail("파일이 너무 커요. 한 달치 식단표만 올려 주세요.", 413, cors);
 
     // 상한: 한 달 전체 + IP별 하루. KV는 즉시 일관되지 않아 몇 건 넘칠 수 있다 — 비용 폭주만 막으면 된다.
@@ -126,10 +149,15 @@ export default {
           stream: true,
           fallbacks: "default",
           output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
-          system: SYSTEM,
+          system: images.length ? SYSTEM + SYSTEM_IMAGE : SYSTEM,
           messages: [{
             role: "user",
-            content: `${age ? "연령: " + age + "\n" : ""}${hint ? "어린이집/지역: " + hint + "\n" : ""}\n아래는 식단표 원본 텍스트다.\n\n${text}`,
+            content: images.length
+              ? [
+                  ...images.map((im) => ({ type: "image", source: { type: "base64", media_type: im.media_type, data: im.data } })),
+                  { type: "text", text: `${age ? "연령: " + age + "\n" : ""}${hint ? "어린이집/지역: " + hint + "\n" : ""}위 그림은 식단표 원본이다(${images.length}장).${text.trim() ? "\n\n함께 올린 다른 파일의 텍스트:\n\n" + text : ""}` },
+                ]
+              : `${age ? "연령: " + age + "\n" : ""}${hint ? "어린이집/지역: " + hint + "\n" : ""}\n아래는 식단표 원본 텍스트다.\n\n${text}`,
           }],
         }),
       });

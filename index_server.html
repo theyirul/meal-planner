@@ -297,6 +297,11 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
 .up-choose{display:flex;flex-direction:column;gap:10px;margin-top:18px}
 .up-sum{font-size:.92rem;margin-bottom:14px}
 .up-sum strong{font-weight:700}
+.up-orig{margin-bottom:14px}
+.up-orig-row{display:flex;gap:8px;overflow-x:auto}
+.up-orig a{flex:0 0 auto;display:block;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.up-orig img{display:block;height:140px;width:auto}
+.up-orig-cap{font-size:.78rem;color:var(--text2);margin-top:6px}
 .up-warn{background:var(--alert-bg);border:1px solid var(--alert-light);border-radius:var(--radius);padding:12px 14px;font-size:.84rem;color:var(--text);margin-bottom:14px;line-height:1.55}
 .up-warn b{color:var(--alert)}
 .up-notes li{font-size:.8rem;color:var(--text2);padding:2px 0 2px 12px;position:relative}
@@ -422,7 +427,7 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
 
     <div class="ft-cta" id="upCta" style="margin-top:32px">
       <div class="ft-cta-title">우리 어린이집 식단표 직접 올리기</div>
-      <div class="ft-cta-desc">어린이집에서 받은 PDF나 엑셀 파일을 올려주세요.<br>AI와 함께 메뉴와 알레르기를 정리할 수 있어요.<br><br>원본과 한 번 맞춰보고 수정하거나 저장해 사용하세요.</div>
+      <div class="ft-cta-desc">어린이집에서 받은 PDF·엑셀 파일이나 식단표 사진을 올려주세요.<br>AI와 함께 메뉴와 알레르기를 정리할 수 있어요.<br><br>원본과 한 번 맞춰보고 수정하거나 저장해 사용하세요.</div>
       <button class="ft-cta-btn" type="button" onclick="openUpload()">식단표 올리기</button>
       <!-- 임시: Tally 폼(https://tally.so/r/68RWPB) 대신 오픈카톡방 연결 (2026-08-04) -->
       <div class="up-alt">잘 안 되면 <a href="https://open.kakao.com/o/gxguv9mi" id="applyLink" target="_blank" rel="noopener">카톡으로 보내주세요</a></div>
@@ -442,8 +447,8 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
     <div id="upPick">
       <div class="st-section">
         <div class="st-label">식단표 파일</div>
-        <div class="st-desc">PDF, 한글(HWP), 엑셀(xlsx), CSV를 올릴 수 있어요. 식단표와 조리법이 따로 있으면 함께 고르세요.<br>올린 식단은 이 휴대폰에만 저장돼요. 다른 사람에게는 보이지 않아요.</div>
-        <input id="upFile" type="file" multiple accept=".pdf,.hwp,.xlsx,.xls,.csv,.txt,application/pdf" class="up-file-input">
+        <div class="st-desc">PDF, 한글(HWP), 엑셀(xlsx), CSV, 사진을 올릴 수 있어요. 식단표와 조리법이 따로 있으면 함께 고르세요.<br>사진은 표가 화면에 꽉 차게, 글자가 또렷하게 찍어 주세요. 파일이 있으면 파일이 더 정확해요.<br>올린 식단은 이 휴대폰에만 저장돼요. 다른 사람에게는 보이지 않아요.</div>
+        <input id="upFile" type="file" multiple accept=".pdf,.hwp,.xlsx,.xls,.csv,.txt,application/pdf,image/*" class="up-file-input">
         <label for="upFile" class="up-drop" id="upDrop">파일 고르기</label>
         <ul class="up-files" id="upFiles"></ul>
       </div>
@@ -466,6 +471,7 @@ body{font-family:'Pretendard Variable','Noto Sans KR',system-ui,-apple-system,sa
     <!-- C. 확인 -->
     <div id="upReview" hidden>
       <div class="up-sum" id="upSum"></div>
+      <div class="up-orig" id="upOrig" hidden></div>
       <div class="up-warn" id="upWarn" hidden></div>
       <ul class="up-notes" id="upNotes"></ul>
       <div class="up-days" id="upDays"></div>
@@ -1442,7 +1448,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
 
 <script>
 // ── 식단표 직접 올리기 ──
-// 파일은 이 브라우저에서 글자로만 바꿔 보낸다(원본 파일은 서버로 안 감).
+// 파일은 이 브라우저에서 글자로만 바꿔 보낸다(원본 파일은 서버로 안 감). 사진·스캔 PDF만 줄인 그림으로 보낸다(Worker는 저장 안 함).
 // Cloudflare Worker(worker/)가 Claude로 구조화해 돌려주고, 부모가 원본과 대조한 뒤 이 기기 localStorage에 저장한다.
 const PARSE_URL='https://meal-planner-parse.mulggo.workers.dev/parse';
 const PDFJS='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs';
@@ -2030,6 +2036,59 @@ async function fileToText(f){
   return '';
 }
 
+// ── 사진·스캔 PDF → 그림. 글자가 없으니 AI가 그림을 직접 읽는다(Worker가 Claude 비전으로) ──
+// 긴 변 2000px JPEG로 줄인다: 한 달치 표의 작은 알레르기 번호가 읽히는 선. Worker 한도는 한 장 1.5MB(base64)
+const IMG_MAX=4,IMG_SIDE=2000,IMG_B64_MAX=1_500_000;
+const isImg=f=>/^image\//.test(f.type)||/\.(jpe?g|png|webp|heic|heif)$/i.test(f.name);
+const isPdf=f=>/\.pdf$/i.test(f.name)||f.type==='application/pdf';
+async function canvasToJpeg(cv){
+  for(const q of [.85,.7,.55]){
+    const blob=await new Promise(r=>cv.toBlob(r,'image/jpeg',q));
+    if(!blob)break;
+    const data=await new Promise((ok,no)=>{const fr=new FileReader();fr.onload=()=>ok(String(fr.result).split(',')[1]);fr.onerror=no;fr.readAsDataURL(blob);});
+    if(data.length<=IMG_B64_MAX)return{img:{media_type:'image/jpeg',data},blob};
+  }
+  throw{userMsg:'사진이 너무 커요. 식단표 부분만 잘라서 올려 주세요.'};
+}
+function sizedCanvas(w,h){
+  const k=Math.min(1,IMG_SIDE/Math.max(w,h));
+  const cv=document.createElement('canvas');cv.width=Math.round(w*k);cv.height=Math.round(h*k);
+  return{cv,k};
+}
+// 사진 회전 정보(EXIF)는 브라우저가 <img>에서 이미 반영한다
+async function imgToJpeg(file){
+  const url=URL.createObjectURL(file);
+  try{
+    const im=await new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=no;i.src=url;});
+    const {cv}=sizedCanvas(im.naturalWidth,im.naturalHeight);
+    const ctx=cv.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,cv.width,cv.height);
+    ctx.drawImage(im,0,0,cv.width,cv.height);
+    return await canvasToJpeg(cv);
+  }catch(e){throw e&&e.userMsg?e:{userMsg:`${file.name}을 열지 못했어요. JPG나 PNG 사진으로 올려 주세요.`};}
+  finally{URL.revokeObjectURL(url);}
+}
+async function pdfToImages(file){
+  const lib=await pdfjs();
+  const doc=await lib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
+  const out=[];
+  for(let p=1;p<=doc.numPages&&p<=IMG_MAX;p++){
+    const page=await doc.getPage(p);
+    const vp1=page.getViewport({scale:1});
+    const s=IMG_SIDE/Math.max(vp1.width,vp1.height);
+    const vp=page.getViewport({scale:s});
+    const {cv}=sizedCanvas(vp.width,vp.height);
+    const ctx=cv.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,cv.width,cv.height);
+    await page.render({canvasContext:ctx,viewport:page.getViewport({scale:s*cv.width/vp.width})}).promise;
+    out.push(await canvasToJpeg(cv));
+  }
+  return out;
+}
+let upOrig=[]; // 확인 화면에 나란히 띄울 원본 그림(AI가 본 그대로)
+function setOrig(blobs){
+  upOrig.forEach(u=>URL.revokeObjectURL(u));
+  upOrig=blobs.map(b=>URL.createObjectURL(b));
+}
+
 // ── AI로 읽기 ──
 async function startUpload(){
   const err=$u('upErr');
@@ -2058,13 +2117,25 @@ async function startUpload(){
     for(const f of menuFiles)parts.push(await fileToText(f));
     upText=parts.filter(Boolean).join('\n\n');
   }catch(e){return upFail(e&&e.userMsg||'파일을 열지 못했어요. 암호가 걸린 파일인지 확인해 주세요.');}
-  if(upText.replace(/\[x=\d+\]|---.*---|\s/g,'').length<50)return upFail('파일에서 글자를 거의 못 읽었어요. 사진을 찍어 만든(스캔) PDF는 아직 못 읽어요.');
+  const hasText=upText.replace(/\[x=\d+\]|---.*---|\s/g,'').length>=50;
+  // 사진은 그림으로 보낸다. PDF에서 글자를 못 뽑았으면(스캔 PDF) PDF도 쪽마다 그림으로 바꿔 보낸다
+  const images=[];
+  try{
+    const got=[];
+    for(const f of menuFiles.filter(isImg))got.push(await imgToJpeg(f));
+    if(!hasText)for(const f of menuFiles.filter(isPdf))got.push(...await pdfToImages(f));
+    if(got.length>IMG_MAX)return upFail(`사진은 ${IMG_MAX}장까지 올릴 수 있어요.`);
+    got.forEach(g=>images.push(g.img));
+    setOrig(got.map(g=>g.blob));
+  }catch(e){return upFail(e&&e.userMsg||'사진을 열지 못했어요. 다시 시도해 주세요.');}
+  if(upStepNow!=='work')return;
+  if(!images.length&&!hasText)return upFail('파일에서 글자를 거의 못 읽었어요. 식단표 파일이 맞는지 확인해 주세요.');
 
-  $u('upWorkTitle').textContent='AI가 메뉴와 알레르기를 정리하고 있어요';
+  $u('upWorkTitle').textContent=images.length?'AI가 사진에서 메뉴와 알레르기를 읽고 있어요':'AI가 메뉴와 알레르기를 정리하고 있어요';
   upAbort=new AbortController();
   let acc='',fail='';
   try{
-    const res=await fetch(PARSE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:upText}),signal:upAbort.signal});
+    const res=await fetch(PARSE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:hasText?upText:'',images}),signal:upAbort.signal});
     // 실패면 Worker가 {"error":…} JSON을, 성공이면 Anthropic SSE를 그대로 보낸다(Worker CPU 한도 때문에 푸는 건 여기서)
     if(!res.ok){let j={};try{j=await res.json();}catch(e){}throw{userMsg:j.error||'분석 중 오류가 났어요. 다시 시도해 주세요.'};}
     const reader=res.body.getReader(),dec=new TextDecoder();
@@ -2095,6 +2166,7 @@ async function startUpload(){
   let raw;
   try{raw=JSON.parse(acc);}catch(e){return upFail('AI 결과를 읽지 못했어요. 다시 시도해 주세요.');}
   upResult=normalizeResult(raw);
+  upResult.photo=images.length>0;
   if(!upResult.items.length)return upFail('식단을 찾지 못했어요. 식단표 파일이 맞는지 확인해 주세요.');
   renderReview();
   renderSaveTo();
@@ -2143,9 +2215,13 @@ function renderReview(){
   const days=[...new Set(r.items.map(i=>i.date))];
   const chks=r.items.filter(i=>i.chk);
   $u('upSum').innerHTML=`<strong>${r.year}년 ${r.month}월</strong> · ${days.length}일, 메뉴 ${r.items.length}개를 찾았어요.<br>${r.kind?'<span style="color:var(--text2);font-size:.82rem">센터 표준 양식이라 AI 없이 칸 위치 그대로 읽었어요.</span><br>':''}<span style="color:var(--text2);font-size:.82rem">원본 식단표를 옆에 두고 알레르기 번호를 대조해 주세요. 메뉴를 누르면 고칠 수 있어요.</span>`;
+  // 사진은 글자를 잘못 읽을 위험이 파일보다 크다 → AI가 본 그림을 바로 위에 두고 대조하게 한다
+  const o=$u('upOrig');
+  o.hidden=!r.photo;
+  o.innerHTML=r.photo?`<div class="up-orig-row">${upOrig.map((u,i)=>`<a href="${u}" target="_blank" rel="noopener" aria-label="원본 사진 ${i+1} 크게 보기"><img src="${u}" alt="원본 식단표 ${i+1}"></a>`).join('')}</div><div class="up-orig-cap">사진에서 읽은 결과라 글자를 잘못 읽었을 수 있어요. 사진을 눌러 크게 보면서 번호를 하나씩 맞춰 주세요.</div>`:'';
   const w=$u('upWarn');
   w.hidden=!chks.length;
-  w.innerHTML=chks.length?`<b>⚠️ 꼭 확인할 메뉴 ${chks.length}개</b> — 아래 붉은 칸이에요. AI가 확신하지 못한 곳이에요.`:'';
+  w.innerHTML=chks.length?`<b>⚠️ 꼭 확인할 메뉴 ${chks.length}개</b> — 아래 붉은 칸이에요. ${r.kind?'자동 점검에 걸린 곳이에요.':'AI가 확신하지 못한 곳이에요.'}`:'';
   $u('upNotes').innerHTML=r.notes.map(n=>`<li>${esc(String(n))}</li>`).join('');
   const box=$u('upDays');box.innerHTML='';
   days.forEach(d=>{
